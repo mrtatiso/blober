@@ -145,4 +145,4 @@ blober is **source available**, free to play and to mod, but not to sell.
 
 The official version (like the one on Steam) is sold by its author. Code is under the [PolyForm Noncommercial License 1.0.0](LICENSE). Want to use it commercially? Ask.
 
-Versions published before this change were released under MIT. Third-party parts keep their own licenses: see [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+Third-party parts keep their own licenses: see [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
