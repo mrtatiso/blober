@@ -1,0 +1,2275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>blober</title>
+<link rel="manifest" href="manifest.webmanifest?v=3">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14161a" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=3">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="blober">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preload" href="fonts/BagelFatOne.woff2" as="font" type="font/woff2" crossorigin>
+<!--
+  blober: blober is the filter. Double click the floor and one falls somewhere. Left click drags; one click is a pat;
+  a double click sends it off in hearts ("more of this"). Right click scares; a double right click kills it
+  ("no more of this"), and the more you clean, the worse the way to go. On touch screens: tap = a pat, double tap = a fright,
+  hold and slide to ♥ or 💔; two fingers zoom.
+-->
+<style>
+@font-face{font-family:"Bagel Fat One";src:url(fonts/BagelFatOne.woff2) format("woff2");font-display:swap}   /* the font lives here, so it works offline */
+/* VOICE  cute and a little cruel: everything soft until something blows up
+   IDEA   an endless white floor, nothing drawn on it; only the blobs and their shadows
+   PICTURE the whole screen is the pen
+   COLOUR white; the blobs bring the color; fire and lightning bring the fright
+   LAYOUT logo top left, "···" top right, nothing else */
+:root{color-scheme:light dark;--bg:light-dark(#fff,#14161a);--ink:light-dark(#1d1820,#eee9f2);--chip:light-dark(#fff,#23262c)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,sans-serif;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#logo{position:fixed;left:22px;top:16px;margin:0;font:400 34px/1 "Bagel Fat One",system-ui,sans-serif;color:var(--ink);pointer-events:none}
+#logo svg{display:block;height:1em;width:auto;overflow:visible}   /* the logo is drawn, not typed: no font needed */
+button{font:inherit;min-height:44px;padding:0 18px;border:0;border-radius:999px;background:var(--chip);color:var(--ink);cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+button:focus-visible{outline:3px solid #5cc96b;outline-offset:2px}
+#more{position:fixed;right:12px;top:12px;width:44px;padding:0;font-size:20px;line-height:1;background:transparent;box-shadow:none;opacity:.55}
+#more:hover{opacity:1}
+#menu{position:fixed;right:12px;top:58px;display:flex;flex-direction:column;gap:6px;background:var(--chip);padding:10px;border-radius:16px;box-shadow:0 4px 18px rgba(0,0,0,.14);width:230px}
+#menu[hidden],#toast[hidden]{display:none}
+#menu small{opacity:.6;padding:0 6px 4px;font-size:12px;line-height:1.5}
+#menu button{min-height:40px;text-align:left}
+#logo{transition:left .75s cubic-bezier(.5,0,.2,1),top .75s cubic-bezier(.5,0,.2,1),font-size .75s cubic-bezier(.5,0,.2,1),transform .75s cubic-bezier(.5,0,.2,1)}
+body.start #logo{left:50%;top:44%;transform:translate(-50%,-50%);font-size:clamp(72px,17vw,190px)}
+#start{position:fixed;left:50%;top:calc(44% + clamp(60px,11vw,124px));transform:translateX(-50%);margin:0;font-size:17px;opacity:0;pointer-events:none;letter-spacing:.02em;white-space:nowrap;transition:opacity .4s}
+body.start #start{opacity:.5;animation:breathe 2.4s ease-in-out infinite}
+@keyframes breathe{50%{opacity:.25}}
+body.start #more{opacity:0;pointer-events:none}
+#more{transition:opacity .5s}
+#rules{position:fixed;inset:0;display:grid;place-items:center;background:rgba(20,16,24,.3);padding:16px}
+#rules[hidden]{display:none}
+#rules .card{position:relative;background:var(--chip);color:var(--ink);border-radius:22px;padding:22px 24px 18px;width:min(440px,100%);max-height:calc(100vh - 32px);overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.22)}
+#rules h2{margin:0 0 14px;font:400 30px/1 "Bagel Fat One",system-ui,sans-serif}
+#rules .keys{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+#rules .keys li{display:grid;grid-template-columns:28px 5.2em 1fr;align-items:center;gap:12px}
+#rules .keys i{font-style:normal;font-size:21px;line-height:1;display:grid;place-items:center}
+#rules .keys i svg{width:26px;height:26px}
+#rules .keys b{font-weight:700}
+#rules .keys span{opacity:.65;text-align:right}
+#rules[data-on=mouse] .keys[data-for=touch],#rules[data-on=touch] .keys[data-for=mouse]{display:none}   /* only the controls of the device you are on */
+#rules .link{min-height:0;padding:0;background:none;box-shadow:none;font:inherit;color:inherit;text-decoration:underline;cursor:pointer}
+#rules p{margin:16px 0 0;font-size:13px;opacity:.6;line-height:1.5}
+#rulesX{position:absolute;right:10px;top:10px;width:40px;min-height:40px;padding:0;font-size:24px;line-height:1;background:transparent;box-shadow:none;opacity:.55}
+#rulesX:hover{opacity:1}
+#play{position:fixed;right:58px;top:12px;width:44px;padding:0;font-size:17px;line-height:1;background:transparent;box-shadow:none;opacity:.55;transition:opacity .5s}
+#play:hover{opacity:1}
+body.start #play{opacity:0;pointer-events:none}
+#games{position:fixed;inset:0;display:grid;place-items:center;background:rgba(20,16,24,.3);padding:16px}
+#games[hidden]{display:none}
+#radial{position:fixed;inset:0;pointer-events:none;z-index:5}
+#radial[hidden]{display:none}
+#radial i{position:absolute;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;background:var(--chip);box-shadow:0 3px 14px rgba(0,0,0,.18);display:grid;place-items:center;transform:scale(.4);opacity:0;transition:transform .16s cubic-bezier(.3,1.6,.5,1),opacity .12s}
+#radial.on i{transform:scale(1);opacity:1}
+#radial i.pick{transform:scale(1.3)}
+#radial svg{width:34px;height:34px}
+#games .card{position:relative;background:var(--chip);color:var(--ink);border-radius:22px;padding:22px 24px 20px;width:min(420px,100%);box-shadow:0 10px 40px rgba(0,0,0,.22)}
+#games h2{margin:0 0 14px;font:400 30px/1 "Bagel Fat One",system-ui,sans-serif}
+#games .game{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;padding:12px 16px;border-radius:16px;text-align:left;margin-top:8px}
+#games .game b{font:400 22px/1.1 "Bagel Fat One",system-ui,sans-serif}
+#games .game span{font-size:13px;opacity:.65}
+#games .game[disabled]{opacity:.4;cursor:default;box-shadow:none}
+#gamesX{position:absolute;right:10px;top:10px;width:40px;min-height:40px;padding:0;font-size:24px;line-height:1;background:transparent;box-shadow:none;opacity:.55}
+#toast{position:fixed;left:50%;bottom:max(22px,env(safe-area-inset-bottom));transform:translateX(-50%);background:#1d1820;color:#fff;padding:10px 18px;border-radius:14px;font-size:14px;max-width:92vw;text-align:center}
+</style>
+</head>
+<body class="start">
+<canvas id="cv"></canvas>
+<h1 id="logo"><svg viewBox="0 -936 2939 1000" role="img" aria-label="blober" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M374 0Q324 0 293.5 -21.0Q263 -42 249.0 -76.5Q235 -111 233 -151H214V-95Q214 -54 189.0 -27.0Q164 0 120 0Q74 0 50.5 -27.0Q27 -54 27 -95V-671Q27 -714 50.0 -742.5Q73 -771 120 -771Q167 -771 190.5 -742.5Q214 -714 214 -673V-370L218 -369Q228 -411 243.5 -446.0Q259 -481 290.0 -502.0Q321 -523 376 -523Q461 -523 506.0 -453.5Q551 -384 551 -268Q551 -135 505.5 -67.5Q460 0 374 0ZM212 -276Q212 -271 212.5 -266.5Q213 -262 214 -257Q219 -236 238.5 -225.5Q258 -215 300 -215Q350 -215 368.5 -230.0Q387 -245 387 -276Q387 -308 369.0 -323.0Q351 -338 301 -338Q258 -338 238.5 -327.5Q219 -317 214 -295Q213 -291 212.5 -286.5Q212 -282 212 -276ZM690 0Q641 0 616.5 -26.0Q592 -52 592 -91V-671Q592 -714 616.5 -742.5Q641 -771 690 -771Q734 -771 758.0 -742.5Q782 -714 782 -673V-91Q782 -52 758.0 -26.0Q734 0 690 0ZM1084 2Q967 2 897.5 -67.5Q828 -137 828 -264Q828 -342 860.0 -401.0Q892 -460 949.5 -493.5Q1007 -527 1084 -527Q1170 -527 1227.0 -493.5Q1284 -460 1312.5 -401.0Q1341 -342 1341 -264Q1341 -137 1277.5 -67.5Q1214 2 1084 2ZM947 -281Q947 -250 978.0 -237.5Q1009 -225 1084 -225Q1159 -225 1190.0 -237.5Q1221 -250 1221 -281Q1221 -311 1190.0 -323.0Q1159 -335 1084 -335Q1009 -335 978.0 -323.0Q947 -311 947 -281ZM1737 0Q1687 0 1656.5 -21.0Q1626 -42 1612.0 -76.5Q1598 -111 1596 -151H1577V-95Q1577 -54 1552.0 -27.0Q1527 0 1483 0Q1437 0 1413.5 -27.0Q1390 -54 1390 -95V-671Q1390 -714 1413.0 -742.5Q1436 -771 1483 -771Q1530 -771 1553.5 -742.5Q1577 -714 1577 -673V-370L1581 -369Q1591 -411 1606.5 -446.0Q1622 -481 1653.0 -502.0Q1684 -523 1739 -523Q1824 -523 1869.0 -453.5Q1914 -384 1914 -268Q1914 -135 1868.5 -67.5Q1823 0 1737 0ZM1575 -276Q1575 -271 1575.5 -266.5Q1576 -262 1577 -257Q1582 -236 1601.5 -225.5Q1621 -215 1663 -215Q1713 -215 1731.5 -230.0Q1750 -245 1750 -276Q1750 -308 1732.0 -323.0Q1714 -338 1664 -338Q1621 -338 1601.5 -327.5Q1582 -317 1577 -295Q1576 -291 1575.5 -286.5Q1575 -282 1575 -276ZM1945 -260Q1945 -339 1976.5 -399.0Q2008 -459 2066.5 -493.0Q2125 -527 2206 -527Q2269 -527 2319.5 -504.0Q2370 -481 2399.0 -442.5Q2428 -404 2428 -358Q2428 -310 2400.0 -290.0Q2372 -270 2317 -270H2107Q2107 -244 2127.5 -227.0Q2148 -210 2197 -210Q2222 -210 2243.5 -215.0Q2265 -220 2287.5 -224.5Q2310 -229 2338 -229Q2378 -229 2404.0 -200.5Q2430 -172 2430 -122Q2430 -63 2369.5 -30.0Q2309 3 2211 3Q2142 3 2081.5 -24.0Q2021 -51 1983.0 -109.5Q1945 -168 1945 -260ZM2269 -303Q2284 -303 2279 -317Q2275 -331 2255.0 -346.0Q2235 -361 2197 -361Q2153 -361 2131.5 -342.0Q2110 -323 2110 -303ZM2583 0Q2536 0 2510.0 -27.0Q2484 -54 2484 -95V-423Q2484 -466 2510.0 -494.5Q2536 -523 2583 -523Q2630 -523 2655.0 -494.5Q2680 -466 2680 -425V-404H2699Q2703 -457 2739.0 -491.0Q2775 -525 2824 -525Q2873 -525 2901.5 -495.0Q2930 -465 2930 -415Q2930 -368 2903.0 -337.0Q2876 -306 2834 -306Q2799 -306 2775.5 -322.5Q2752 -339 2741 -361Q2709 -365 2694.5 -354.5Q2680 -344 2680 -313V-95Q2680 -54 2655.0 -27.0Q2630 0 2583 0Z"/></svg></h1>
+<button id="play" aria-label="games">▶</button>
+<button id="more" aria-label="menu">···</button>
+<div id="menu" hidden>
+  <small id="info"></small>
+  <button id="controls">controls</button>
+  <button id="photo">photograph</button>
+  <button id="folder" hidden>folder…</button>
+  <button id="save">save</button>
+  <button id="load">load</button>
+  <input type="file" id="file" accept=".bna,.txt,text/plain" hidden>
+</div>
+<p id="start">double click to start</p>
+<div id="rules" hidden role="dialog" aria-modal="true" aria-labelledby="rulesT">
+  <div class="card">
+    <button id="rulesX" aria-label="close">×</button>
+    <h2 id="rulesT">controls</h2>
+    <ul class="keys" data-for="mouse">
+      <li><i><svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.3 3 4.5 6.6 4.5c2.1 0 3.6 1.2 5.4 3.2 1.8-2 3.3-3.2 5.4-3.2 3.6 0 5.7 3.8 4.2 7.3C19.5 16.4 12 21 12 21z" fill="#ff6f86"/></svg></i><b>like</b><span>double click</span></li>
+      <li><i><svg viewBox="0 0 24 24"><path d="M11 6.9C9.4 5.3 8.2 4.5 6.6 4.5 3 4.5.9 8.3 2.4 11.8 4.2 15.7 10 19.6 11.4 20.5l.6-5.1-2.3-3.1 2.4-2.6z" fill="#8f97a3"/><path d="M13 7.4c1.6-1.8 3-2.9 4.4-2.9 3.6 0 5.7 3.8 4.2 7.3-1.8 4-7.6 7.9-8.9 8.7l1-5.3-2.2-2.9 2.1-2.4z" fill="#8f97a3"/></svg></i><b>dislike</b><span>double right click</span></li>
+    </ul>
+    <ul class="keys" data-for="touch">
+      <li><i><svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.3 3 4.5 6.6 4.5c2.1 0 3.6 1.2 5.4 3.2 1.8-2 3.3-3.2 5.4-3.2 3.6 0 5.7 3.8 4.2 7.3C19.5 16.4 12 21 12 21z" fill="#ff6f86"/></svg></i><b>like</b><span>hold, slide left</span></li>
+      <li><i><svg viewBox="0 0 24 24"><path d="M11 6.9C9.4 5.3 8.2 4.5 6.6 4.5 3 4.5.9 8.3 2.4 11.8 4.2 15.7 10 19.6 11.4 20.5l.6-5.1-2.3-3.1 2.4-2.6z" fill="#8f97a3"/><path d="M13 7.4c1.6-1.8 3-2.9 4.4-2.9 3.6 0 5.7 3.8 4.2 7.3-1.8 4-7.6 7.9-8.9 8.7l1-5.3-2.2-2.9 2.1-2.4z" fill="#8f97a3"/></svg></i><b>dislike</b><span>hold, slide right</span></li>
+    </ul>
+    <p>What you like falls more often. <button id="rulesSwap" class="link"></button></p>
+  </div>
+</div>
+<div id="games" hidden role="dialog" aria-modal="true" aria-labelledby="gamesT">
+  <div class="card">
+    <button id="gamesX" aria-label="close">×</button>
+    <h2 id="gamesT">play</h2>
+    <button class="game" data-href="blobslinger.html"><b>blobslinger</b><span>throw the ones you like at the ones you don't</span></button>
+    <button class="game" disabled><b>more soon</b><span>same blobs, same .bna</span></button>
+  </div>
+</div>
+<div id="radial" hidden aria-hidden="true">
+  <i id="rLove"><svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.3 3 4.5 6.6 4.5c2.1 0 3.6 1.2 5.4 3.2 1.8-2 3.3-3.2 5.4-3.2 3.6 0 5.7 3.8 4.2 7.3C19.5 16.4 12 21 12 21z" fill="#ff6f86"/></svg></i>
+  <i id="rGone"><svg viewBox="0 0 24 24"><path d="M11 6.9C9.4 5.3 8.2 4.5 6.6 4.5 3 4.5.9 8.3 2.4 11.8 4.2 15.7 10 19.6 11.4 20.5l.6-5.1-2.3-3.1 2.4-2.6z" fill="#8f97a3"/><path d="M13 7.4c1.6-1.8 3-2.9 4.4-2.9 3.6 0 5.7 3.8 4.2 7.3-1.8 4-7.6 7.9-8.9 8.7l1-5.3-2.2-2.9 2.1-2.4z" fill="#8f97a3"/></svg></i>
+</div>
+<div id="toast" hidden></div>
+
+<script id="core">
+
+"use strict";
+// ======================================================================
+// blober core: genome → creature, pieces as SVG, and a brain per part.
+// No DOM here, so it can be read and tested on its own.
+// ======================================================================
+
+const VERSION = "bna1-pre";
+
+// ---------- numbers from a seed ----------
+
+function hash4(str) {                       // cyrb128
+  let h1 = 1779033703, h2 = 3144134277, h3 = 1013904242, h4 = 2773480762;
+  for (let i = 0; i < str.length; i++) {
+    const k = str.charCodeAt(i);
+    h1 = h2 ^ Math.imul(h1 ^ k, 597399067); h2 = h3 ^ Math.imul(h2 ^ k, 2869860233);
+    h3 = h4 ^ Math.imul(h3 ^ k, 951274213); h4 = h1 ^ Math.imul(h4 ^ k, 2716044179);
+  }
+  h1 = Math.imul(h3 ^ (h1 >>> 18), 597399067); h2 = Math.imul(h4 ^ (h2 >>> 22), 2869860233);
+  h3 = Math.imul(h1 ^ (h3 >>> 17), 951274213); h4 = Math.imul(h2 ^ (h4 >>> 19), 2716044179);
+  return [(h1 ^ h2 ^ h3 ^ h4) >>> 0, (h2 ^ h1) >>> 0, (h3 ^ h1) >>> 0, (h4 ^ h1) >>> 0];
+}
+
+function seeded(seed) {                     // sfc32
+  let [a, b, c, d] = hash4("blober|" + seed);
+  const next = () => {
+    const t = (((a + b) | 0) + d) | 0;
+    d = (d + 1) | 0; a = b ^ (b >>> 9); b = (c + (c << 3)) | 0;
+    c = (c << 21) | (c >>> 11); c = (c + t) | 0;
+    return (t >>> 0) / 4294967296;
+  };
+  for (let i = 0; i < 12; i++) next();
+  return next;
+}
+
+const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
+const gauss = r => Math.sqrt(-2 * Math.log(r() + 1e-12)) * Math.cos(6.2831853 * r());
+const qv = v => Math.round(clamp(v) * 255) / 255;          // genes live on 256 steps, so they round-trip
+const F = v => (Math.round(v * 10) / 10).toFixed(1).replace("-0.0", "0.0");
+
+// ---------- distance fields: negative inside ----------
+
+const circle = (x, y, cx, cy, r) => Math.hypot(x - cx, y - cy) - r;
+function capsule(x, y, ax, ay, bx, by, r) {
+  const vx = bx - ax, vy = by - ay;
+  const t = clamp(((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy || 1));
+  return Math.hypot(x - ax - vx * t, y - ay - vy * t) - r;
+}
+function smin(a, b, k) { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k / 4; }
+const smax = (a, b, k) => -smin(-a, -b, k);
+function polygon(corners, radius) {
+  return (x, y) => {
+    const n = corners.length; let d = 9, pos = 0;
+    for (let i = 0; i < n; i++) {
+      const [ax, ay] = corners[i], [bx, by] = corners[(i + 1) % n];
+      d = Math.min(d, capsule(x, y, ax, ay, bx, by, 0));
+      if ((bx - ax) * (y - ay) - (by - ay) * (x - ax) >= 0) pos++;
+    }
+    return (pos === n || pos === 0 ? -d : d) - radius;
+  };
+}
+
+// ---------- genome ----------
+// s: 16 shape genes · f: 10 face genes · e: eye style · m: mouth style
+// a: 7 arm genes (a0 = has arms) · l: 7 leg genes (l0 = has legs) · c: color
+
+const NS = 16, NF = 10, NL = 7, NT = 8, NE = 9;   // NE: eye styles in bna1 (lentes are gone)
+const PALETTE = ["#7ec8f0", "#9bd36a", "#f7a440", "#f48aa0", "#a77be0", "#ef5f57", "#5fd0c4", "#f5d14a",
+                 "#c2a6f0", "#ff9e7a", "#9aa6b2", "#3d4fb5", "#3f9a83", "#6b4fb8", "#e8453c", "#f2ce3a"];
+const ARMS_ON = .6, LEGS_ON = .45, ANT_ON = .55;
+const LIMB_KEY = { arms: "a", legs: "l", antennas: "t" }, LIMB_ON = { arms: ARMS_ON, legs: LEGS_ON, antennas: ANT_ON };
+const isOn = (part, g) => g[LIMB_KEY[part]][0] >= LIMB_ON[part];
+
+const hexOf = arr => arr.map(v => Math.round(v * 255).toString(16).padStart(2, "0")).join("");
+const fromHex = (h, n) => Array.from({ length: n }, (_, i) => parseInt(h.slice(2 * i, 2 * i + 2), 16) / 255);
+const genome = g => `s=${hexOf(g.s)} f=${hexOf(g.f)} e=${g.e} m=${g.m} t=${hexOf(g.t)} a=${hexOf(g.a)} l=${hexOf(g.l)} c=${g.c}`;
+
+function parseGenome(line) {
+  const kv = {};
+  for (const t of line.trim().split(/\s+/)) { const i = t.indexOf("="); if (i > 0) kv[t.slice(0, i)] = t.slice(i + 1); }
+  const hx = (k, n) => { if (!new RegExp(`^[0-9a-f]{${2 * n}}$`).test(kv[k] || "")) throw new Error(k); return fromHex(kv[k], n); };
+  const int = (k, n) => { const v = Number(kv[k]); if (!(Number.isInteger(v) && v >= 0 && v < n)) throw new Error(k); return v; };
+  return { s: hx("s", NS), f: hx("f", NF), e: int("e", NE), m: int("m", 10), t: hx("t", NT), a: hx("a", NL), l: hx("l", NL), c: int("c", PALETTE.length) };
+}
+
+// ---------- shape: 16 numbers → one smooth body, endless variety ----------
+
+function shapeParams(G) {
+  const lin = (v, t) => v < t ? 0 : (v - t) / (1 - t);
+  const aspect = .72 + G[0] * .66, bd = G[14] - .5;
+  return {
+    a: Math.sqrt(aspect), b: 1 / Math.sqrt(aspect),
+    p: 2 + G[1] * G[1] * 4,                               // round → squarish
+    poly: lin(G[2], .5), n: 3 + Math.floor(G[3] * 5.99),  // polygon blend, 3 to 8 sides
+    taper: (G[4] - .5) * 1.0,                             // wide top ↔ wide bottom
+    lobe: lin(G[5], .45) * .3, nl: 3 + Math.floor(G[6] * 9.99), sharp: .35 + G[7] * G[7] * 3.2,   // flower ↔ star
+    ears: lin(G[8], .62), earSpread: G[9],
+    arch: lin(G[10], .66), cleft: lin(G[11], .72),        // gap underneath · heart dip on top
+    wob: G[12] * G[12] * .13, ph: G[13] * 6.2832,         // blobby wobble
+    bend: Math.abs(bd) < .22 ? 0 : Math.sign(bd) * (Math.abs(bd) - .22) / .28 * .42,
+    rot: G[15],
+  };
+}
+
+const FAMILY_GENES = { poly: [2, .5], lobe: [5, .45], ears: [8, .62], arch: [10, .66], cleft: [11, .72] };
+
+function famOf(s) {
+  const P = shapeParams(s);
+  if (P.lobe) return P.sharp > 1.5 ? "estrella" : "flor";
+  if (P.arch) return "arco";
+  if (P.cleft) return "corazón";
+  if (P.poly > .45) return P.n === 3 ? "triángulo" : P.n === 4 ? "cuadro" : "polígono";
+  if (P.ears) return "orejas";
+  if (P.bend) return "frijol";
+  return "bola";
+}
+
+function field(P) {
+  const { a, b, p, poly, n, taper, lobe, nl, sharp, ears, earSpread, arch, cleft, wob, ph, bend, rot } = P;
+  let polyF = null;
+  if (poly > 0) {
+    const r0 = -Math.PI / 2 + rot * 2 * Math.PI / n, rr = .3, corners = [];
+    for (let i = 0; i < n; i++) { const t = r0 + 2 * Math.PI * i / n; corners.push([Math.cos(t) * (a * 1.1 - rr * .5), Math.sin(t) * (b * 1.1 - rr * .5)]); }
+    polyF = polygon(corners, rr);
+  }
+  const amp = lobe * (1 + sharp * .35), rotL = rot * 2 * Math.PI / nl - Math.PI / 2;
+  const earR = .15 + ears * .2, ey = -b * .92, ex = (earSpread < .25 ? 0 : .22 + earSpread * .38) * a * Math.max(.45, 1 - taper * .9 * b);
+  const archR = (.1 + arch * .2) * a, archTop = b * (1 - arch * 1.0), cleftR = .13 + cleft * .2;
+  return (x0, y0) => {
+    const yb = y0 - bend * x0 * x0 + bend * .35;
+    let x = x0, y = yb;
+    const t = Math.atan2(y, x);
+    let m = 1;
+    if (amp) m += amp * (Math.pow(.5 + .5 * Math.cos(nl * (t - rotL)), sharp) - .45);
+    if (wob) m += (1 - Math.min(.8, lobe * 3)) * wob * (Math.cos(2 * t + ph) * .6 + Math.cos(3 * t + ph * 1.7) * .4 + Math.cos(5 * t + ph * 2.3) * .2);
+    x /= m; y /= m;
+    const tx = x / Math.max(.4, 1 + taper * y);
+    const tt = Math.atan2(y, tx), c = Math.abs(Math.cos(tt)) / a, s = Math.abs(Math.sin(tt)) / b;
+    let d = Math.hypot(tx, y) - Math.pow(Math.pow(c, p) + Math.pow(s, p), -1 / p);
+    if (polyF) d = d * (1 - poly) + polyF(tx, y) * poly;
+    d *= m;
+    if (ears) { d = smin(d, circle(x0, yb, ex, ey, earR), .22); if (ex) d = smin(d, circle(x0, yb, -ex, ey, earR), .22); }
+    if (arch) d = smax(d, -capsule(x0, yb, 0, b * 1.5, 0, archTop, archR), .12);
+    if (cleft) d = smax(d, -circle(x0, yb, 0, -b * 1.13, cleftR), .14);
+    return d;
+  };
+}
+
+// ---------- outline: marching squares, smooth, even points ----------
+
+function trace(f, n = 110, span = 2.05) {
+  const step = 2 * span / n, xs = [];
+  for (let i = 0; i <= n; i++) xs.push(-span + i * step);
+  const v = xs.map(y => xs.map(x => f(x, y)));
+  const edges = new Map(), at = new Map();
+  const cross = (i0, j0, i1, j1) => {
+    const a = v[j0][i0], b = v[j1][i1], t = a !== b ? a / (a - b) : .5;
+    const p = [xs[i0] + (xs[i1] - xs[i0]) * t, xs[j0] + (xs[j1] - xs[j0]) * t], key = p[0].toFixed(6) + "," + p[1].toFixed(6);
+    at.set(key, p); return key;
+  };
+  const link = (a, b) => { (edges.get(a) || edges.set(a, []).get(a)).push(b); (edges.get(b) || edges.set(b, []).get(b)).push(a); };
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const c = [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]], pts = [];
+    for (let k = 0; k < 4; k++) {
+      const p = c[k], q = c[(k + 1) % 4];
+      if ((v[p[1]][p[0]] < 0) !== (v[q[1]][q[0]] < 0)) pts.push(cross(p[0], p[1], q[0], q[1]));
+    }
+    for (let k = 0; k + 1 < pts.length; k += 2) link(pts[k], pts[k + 1]);
+  }
+  let best = [];
+  const seen = new Set();
+  for (const start of edges.keys()) {
+    if (seen.has(start)) continue;
+    const loop = [start]; let prev = null, cur = start; seen.add(start);
+    for (;;) {
+      const nxt = edges.get(cur).find(p => p !== prev && !seen.has(p));
+      if (nxt === undefined) break;
+      loop.push(nxt); seen.add(nxt); prev = cur; cur = nxt;
+    }
+    if (loop.length > best.length) best = loop;
+  }
+  return best.map(k => at.get(k));
+}
+
+function smooth(pts, passes = 2) {
+  for (let p = 0; p < passes; p++) {
+    const n = pts.length;
+    pts = pts.map((q, i) => { const a = pts[(i - 1 + n) % n], b = pts[(i + 1) % n]; return [(a[0] + 2 * q[0] + b[0]) / 4, (a[1] + 2 * q[1] + b[1]) / 4]; });
+  }
+  return pts;
+}
+
+function resample(pts, n = 140) {
+  const m = pts.length, seg = pts.map((p, i) => Math.hypot(pts[(i + 1) % m][0] - p[0], pts[(i + 1) % m][1] - p[1]));
+  const total = seg.reduce((s, x) => s + x, 0), out = [];
+  let i = 0, walked = 0;
+  for (let k = 0; k < n; k++) {
+    const target = total * k / n;
+    while (i < m - 1 && walked + seg[i] < target) { walked += seg[i]; i++; }
+    const t = seg[i] ? (target - walked) / seg[i] : 0, a = pts[i], b = pts[(i + 1) % m];
+    out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+  }
+  return out;
+}
+
+const area = pts => Math.abs(pts.reduce((s, p, i) => { const q = pts[(i + 1) % pts.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0)) / 2;
+const goodLoop = l => l.length > 30 && area(l) > .8 && l.every(([x, y]) => Math.abs(x) < 1.98 && Math.abs(y) < 1.98);
+
+function curve(pts) {
+  const n = pts.length, d = [`M${F(pts[0][0])} ${F(pts[0][1])}`];
+  for (let i = 0; i < n; i++) {
+    const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
+    d.push(`C${F(p1[0] + (p2[0] - p0[0]) / 6)} ${F(p1[1] + (p2[1] - p0[1]) / 6)} ${F(p2[0] - (p3[0] - p1[0]) / 6)} ${F(p2[1] - (p3[1] - p1[1]) / 6)} ${F(p2[0])} ${F(p2[1])}`);
+  }
+  return d.join(" ") + "Z";
+}
+
+function inside(pts, x, y) {
+  let c = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c;
+  }
+  return c;
+}
+function edgeDist(pts, x, y) {
+  let d = 1e9;
+  for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; d = Math.min(d, capsule(x, y, a[0], a[1], b[0], b[1], 0)); }
+  return d;
+}
+
+// ---------- a body: path, depth inside, normals along the edge ----------
+
+const bodyCache = new Map();
+function body(s) {
+  const key = hexOf(s);
+  if (bodyCache.has(key)) return bodyCache.get(key);
+  let P = shapeParams(s), loop = trace(field(P)), ok = goodLoop(loop);
+  if (!ok) { P = Object.assign({}, P, { arch: 0, cleft: 0, ears: 0, lobe: P.lobe * .5, wob: P.wob * .5 }); loop = trace(field(P)); ok = goodLoop(loop); }
+  if (!ok) { P = Object.assign({}, P, { lobe: 0, wob: 0, poly: 0, bend: 0 }); loop = trace(field(P)); ok = goodLoop(loop); }
+  const raw = resample(smooth(loop, 2), 140);
+  const xs = raw.map(p => p[0]), ys = raw.map(p => p[1]);
+  const k = 72 / Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  const cx = (Math.max(...xs) + Math.min(...xs)) / 2, miny = Math.min(...ys), h = (Math.max(...ys) - miny) * k;
+  const oy = 9 + (72 - h) / 2;
+  const pts = raw.map(([x, y]) => [50 + (x - cx) * k, oy + (y - miny) * k]);
+  const depth = [];                                         // 50 × 50 cells, 2 units each: distance to the edge, or 0 outside
+  let deep = 0;
+  for (let j = 0; j < 50; j++) {
+    const row = [];
+    for (let i = 0; i < 50; i++) {
+      const X = 1 + 2 * i, Y = 1 + 2 * j, d = inside(pts, X, Y) ? edgeDist(pts, X, Y) : 0;
+      row.push(d); deep = Math.max(deep, d);
+    }
+    depth.push(row);
+  }
+  const normals = pts.map((p, i) => {
+    const a = pts[(i - 1 + pts.length) % pts.length], b = pts[(i + 1) % pts.length];
+    let nx = b[1] - a[1], ny = -(b[0] - a[0]); const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l;
+    if (inside(pts, p[0] + nx * 1.5, p[1] + ny * 1.5)) { nx = -nx; ny = -ny; }
+    return [nx, ny];
+  });
+  const B = { path: curve(pts), pts, normals, depth, deep, ok,
+    minX: Math.min(...pts.map(p => p[0])), maxX: Math.max(...pts.map(p => p[0])),
+    minY: Math.min(...pts.map(p => p[1])), maxY: Math.max(...pts.map(p => p[1])) };
+  bodyCache.set(key, B);
+  if (bodyCache.size > 600) bodyCache.delete(bodyCache.keys().next().value);
+  return B;
+}
+
+const depthAt = (B, X, Y) => { const i = Math.round((X - 1) / 2), j = Math.round((Y - 1) / 2); return i < 0 || j < 0 || i > 49 || j > 49 ? 0 : B.depth[j][i]; };
+function rowSpan(B, X, Y) {                                  // how far you can go left and right inside, from (X, Y)
+  const j = clamp(Math.round((Y - 1) / 2), 0, 49), i0 = clamp(Math.round((X - 1) / 2), 0, 49);
+  if (!B.depth[j][i0]) return [0, 0];
+  let l = i0, r = i0;
+  while (l > 0 && B.depth[j][l - 1]) l--;
+  while (r < 49 && B.depth[j][r + 1]) r++;
+  return [X - (1 + 2 * l), (1 + 2 * r) - X];
+}
+
+// ---------- face: placed by the body, nudged by its genes ----------
+
+const INK = "#2a2230";
+// how far apart the eyes are: from f1, but never so close that big eyes overlap
+const eyeGap = (f, e) => { const base = 5.5 + f[1] * 5.5; return e === undefined ? base : Math.max(base, eyeRadius(e, f) * 1.18); };
+const eyeTall = (e, f) => eyeRadius(e, f) * ({ 2: 1.5, 9: 1.2 }[eyeDraw(e)] || 1);   // half the height of one eye
+const eyeDraw = e => e < 5 ? e : e + 1;      // bna1 eye → prototype drawing (lentes, 5, is gone)
+function eyeHalf(e0, f) {                    // half the width of the eyes, to make them fit
+  const z = f[0], e = eyeDraw(e0);
+  if (e === 6) return 5 + z * 4;
+  return eyeGap(f, e0) + [1.9 + z * 2, 3.9 + z * 3.2, 2 + z * 1.6, 3.8 + z * 2, 3.8 + z * 2, 4.1 + z * 2, 0, 2.4 + z * 2, 3.8 + z * 2, 3.5 + z * 2.5][e];
+}
+const mouthY = f => 6.5 + f[7] * 5;
+
+function placeFace(B, g) {
+  const f = g.f, cells = [];
+  for (let j = 0; j < 50; j++) for (let i = 0; i < 50; i++) if (B.depth[j][i]) cells.push([1 + 2 * i, 1 + 2 * j, B.depth[j][i]]);
+  const cand = cells.filter(c => c[2] >= B.deep * .55), core = cells.filter(c => c[2] >= B.deep * .85);
+  const top = Math.min(...cand.map(c => c[1])), cy = core.reduce((s, c) => s + c[1], 0) / core.length, cx = core.reduce((s, c) => s + c[0], 0) / core.length;
+  const rowX = y => { const row = cells.filter(c => Math.abs(c[1] - y) <= 1.2 && c[2] >= B.deep * .4); return row.length ? row.reduce((s, c) => s + c[0], 0) / row.length : cx; };
+  let fy = top + 1 + (cy - top) * (.08 + .92 * f[2]);          // f2: high up ↔ at the center of mass
+  let fx = rowX(fy);
+  const [l0, r0] = rowSpan(B, fx, fy);
+  fx += (f[9] - .5) * 2 * Math.min(l0, r0) * .3;              // f9: face turned to one side
+  const want = .9 + .8 * f[3], R = eyeRadius(g.e, f), Rv = eyeTall(g.e, f), gp = eyeDraw(g.e) === 6 ? [0] : [-eyeGap(f, g.e), eyeGap(f, g.e)];
+  const fits = (x, y, s) => gp.every(dx => depthAt(B, x + dx * s, y) >= Math.max(R, Rv) * s * 1.18 + 1.2 && depthAt(B, x + dx * s, y - Rv * s) > 1)
+    && (g.m === 0 || depthAt(B, x, y + mouthY(f) * s) > 2.6 * s);
+  // and each eye socket of the skeleton, whole, inside the bone (and the mouth, below): the eye is always inside its socket, the socket inside the bone
+  const bone = boneShape(B), sock = socketR(g.e, f) * 1.15;
+  const inBone = (x, y, s) => gp.every(dx => { const X = x + dx * s; return inside(bone.pts, X, y) && edgeDist(bone.pts, X, y) >= sock * s + .8; });
+  const mo = g.m ? mouthOutline(g.m, f) : null;            // the mouth hole too, whole, inside the bone
+  const mouthIn = (x, y, s) => !mo || mo.p.every(([px, py]) => { const X = x + px * s, Y = y + (mouthY(f) + py) * s; return inside(bone.pts, X, Y) && edgeDist(bone.pts, X, Y) >= mo.r * s + .6; });
+  const ok = (x, y, s) => fits(x, y, s) && inBone(x, y, s) && mouthIn(x, y, s);
+  const tries = [[0, 0]];                                  // nearby spots, closest first; moving sideways costs more than up or down
+  for (let rr = 2; rr <= 24; rr += 2) for (let k = 0; k < 16; k++) { const a = k / 16 * 6.283; tries.push([Math.cos(a) * rr, Math.sin(a) * rr]); }
+  tries.sort((p, q) => Math.hypot(p[0] * 1.6, p[1]) - Math.hypot(q[0] * 1.6, q[1]));
+  let s = want;
+  const search = (ox, oy, lo) => { for (; s >= lo; s *= .93) for (const [dx, dy] of tries) if (ok(ox + dx, oy + dy, s)) return [ox + dx, oy + dy]; return null; };
+  let found = search(fx, fy, want * .6);                   // where the genes want it, a little smaller if needed
+  if (!found) { s = want * .6; found = search(cx, cy - 2, want * .3); }   // else around the thickest spot, smaller still
+  if (found) [fx, fy] = found; else { fx = cx; fy = cy - 2; s = want * .3; }
+  return { x: fx, y: fy, s, fit: !!found };                // fit false: no face fits this body, the blob is not made
+}
+
+function eyesSVG(e0, f) {
+  const e = eyeDraw(e0);
+  const z = f[0], g = eyeGap(f, e0), lx = clamp((f[4] - .5) * 2 + (f[9] - .5) * .8, -1, 1), ly = (f[5] - .5) * 1.6;
+  const dot = (x, r, y = 0, fill = "K") => `<circle cx="${F(x)}" cy="${F(y)}" r="${F(r)}" fill="${fill}"/>`;
+  const wh = (x, r, y = 0) => `<circle cx="${F(x)}" cy="${F(y)}" r="${F(r)}" fill="#fff"/>`;
+  const arc = (x, w, up) => `<path d="M${F(x - w)} ${F(w * .4 * up)}q${F(w)} ${F(-w * 1.1 * up)} ${F(2 * w)} 0" stroke="K" stroke-width="2.3" fill="none" stroke-linecap="round"/>`;
+  const pupil = (x, R, px = lx) => wh(x, R) + dot(x + px * R * .38, R * .56, ly * R * .38, INK);
+  const shine = (x, r) => dot(x, r) + `<circle cx="${F(x - r * .35)}" cy="${F(-r * .38)}" r="${F(r * .36)}" fill="#fff"/>`;
+  switch (e) {
+    case 0: { const r = 1.9 + z * 2; return dot(-g, r) + dot(g, r); }
+    case 1: { const R = 3.4 + z * 3.2; return pupil(-g, R) + pupil(g, R); }
+    case 2: { const rx = 2 + z * 1.6, ry = rx * 1.5, o = (x) => `<ellipse cx="${F(x)}" cy="0" rx="${F(rx)}" ry="${F(ry)}" fill="K"/><circle cx="${F(x - rx * .3)}" cy="${F(-ry * .4)}" r="${F(rx * .35)}" fill="#fff"/>`; return o(-g) + o(g); }
+    case 3: { const w = 2.8 + z * 2; return arc(-g, w, 1) + arc(g, w, 1); }
+    case 4: { const w = 2.8 + z * 2; return arc(-g, w, -1) + arc(g, w, -1); }
+    case 5: { const w = 2.6 + z * 2, hh = w * .8, r = (x) => `<rect x="${F(x - w)}" y="${F(-hh)}" width="${F(2 * w)}" height="${F(hh * 1.7)}" rx="${F(hh * .7)}" fill="${INK}"/>`;
+      return r(-g) + r(g) + `<path d="M${F(-g + w * .6)} ${F(-hh * .5)}H${F(g - w * .6)}" stroke="${INK}" stroke-width="1.6"/><path d="M${F(-g - w * .5)} ${F(-hh * .2)}l${F(w * .6)} ${F(-hh * .5)}M${F(g - w * .5)} ${F(-hh * .2)}l${F(w * .6)} ${F(-hh * .5)}" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity=".7"/>`; }
+    case 6: { const R = 5 + z * 4; return pupil(0, R); }
+    case 7: { const r = 2.4 + z * 2; return shine(-g, r) + shine(g, r); }
+    case 8: { const r = 2.2 + z * 1.8; return shine(-g, r) + arc(g, r + 1, 1); }
+    default: { const rx = 3 + z * 2.5, ry = rx * 1.2, o = (x, px) => `<ellipse cx="${F(x)}" cy="0" rx="${F(rx)}" ry="${F(ry)}" fill="#fff"/>` + dot(x + px * rx * .4, rx * .5, ly * ry * .3, INK);
+      return o(-g, .7) + o(g, -.7); }
+  }
+}
+
+function mouthSVG(m, f) {
+  const w = 2.2 + f[6] * 3.4;
+  const line = (d, width = 2.2) => `<path d="${d}" stroke="K" stroke-width="${width}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+  return ["",
+    line(`M${F(-w)} 0q${F(w)} ${F(w * .9)} ${F(2 * w)} 0`),
+    `<ellipse cx="0" cy="1" rx="${F(w * .55)}" ry="${F(w * .6)}" fill="K"/>`,
+    `<path d="M${F(-w * 1.1)} 0h${F(w * 2.2)}q0 ${F(w * 1.5)} ${F(-w * 1.1)} ${F(w * 1.5)}q${F(-w * 1.1)} 0 ${F(-w * 1.1)} ${F(-w * 1.5)}z" fill="${INK}"/><path d="M${F(-w * .55)} ${F(w * 1.25)}q${F(w * .55)} ${F(-w * .7)} ${F(w * 1.1)} 0" fill="#e86a7a"/>`,
+    line(`M${F(-w * .7)} 0h${F(w * 1.4)}`),
+    line(`M${F(-w * .5)} 0q${F(w * .5)} ${F(w * .5)} ${F(w)} 0`, 2),
+    line(`M${F(-w)} 0q${F(w * .5)} -2 ${F(w)} 0t${F(w)} 0`),
+    line(`M${F(-w)} 0q${F(w * .5)} ${F(w * .7)} ${F(w)} 0q${F(w * .5)} ${F(w * .7)} ${F(w)} 0`),
+    line(`M${F(-w)} ${F(w * .5)}q${F(w)} ${F(-w * .9)} ${F(2 * w)} 0`),
+    line(`M${F(-w)} 0q${F(w)} ${F(w * .9)} ${F(2 * w)} 0`) + `<rect x="-1.4" y="${F(w * .2)}" width="2.8" height="2.6" rx=".6" fill="#fff"/>`,
+  ][m];
+}
+
+// the outline of each mouth, as points around its center, and how far its line reaches past them (the stroke, or the shape's own radius)
+function mouthOutline(m, f) {
+  const w = 2.2 + f[6] * 3.4;
+  return [null,
+    { p: [[-w, 0], [w, 0], [0, w * .45], [-w * .5, w * .34], [w * .5, w * .34]], r: 1.1 },
+    { p: [[0, 1]], r: w * .6 },
+    { p: [[-w * 1.1, 0], [w * 1.1, 0], [0, w * 1.5], [-w * .8, w * 1.1], [w * .8, w * 1.1], [0, 0]], r: .3 },
+    { p: [[-w * .7, 0], [w * .7, 0], [0, 0]], r: 1.1 },
+    { p: [[-w * .5, 0], [w * .5, 0], [0, w * .25]], r: 1 },
+    { p: [[-w, 0], [-w * .5, -1], [0, 0], [w * .5, 1], [w, 0]], r: 1.1 },
+    { p: [[-w, 0], [-w * .5, w * .35], [0, 0], [w * .5, w * .35], [w, 0]], r: 1.1 },
+    { p: [[-w, w * .5], [w, w * .5], [0, w * .05], [-w * .5, w * .16], [w * .5, w * .16]], r: 1.1 },
+    { p: [[-w, 0], [w, 0], [0, w * .45], [-1.4, w * .2], [1.4, w * .2], [-1.4, w * .2 + 2.6], [1.4, w * .2 + 2.6]], r: 1.1 },
+  ][m];
+}
+
+// ---------- arms and legs: always curved, anchored on the edge, pointing out of it ----------
+
+const rot = ([x, y], t) => [x * Math.cos(t) - y * Math.sin(t), x * Math.sin(t) + y * Math.cos(t)];
+const norm = ([x, y]) => { const l = Math.hypot(x, y) || 1; return [x / l, y / l]; };
+
+function limbPath(N, D, L, curl, w, mirror) {
+  const E = [D[0] * L, D[1] * L], P = [-D[1], D[0]], c = curl * (mirror ? -1 : 1);
+  const c1 = [N[0] * L * .4, N[1] * L * .4], c2 = [E[0] - D[0] * L * .35 + P[0] * c * L * .55, E[1] - D[1] * L * .35 + P[1] * c * L * .55];
+  return { E, svg: `<path d="M0 0C${F(c1[0])} ${F(c1[1])} ${F(c2[0])} ${F(c2[1])} ${F(E[0])} ${F(E[1])}" stroke="D" stroke-width="${F(w)}" fill="none" stroke-linecap="round"/>` };
+}
+
+function arms(B, g, face) {
+  const a = g.a, L = 7 + a[2] * 13, w = 3 + a[3] * 2.8;
+  const Y = face.y + (B.maxY - face.y) * (.12 + .62 * a[1]);
+  const swing = (-55 + a[4] * 130) * Math.PI / 180, curl = (a[5] < .5 ? -1 : 1) * (.3 + Math.abs(a[5] - .5) * 1.2);
+  const out = {};
+  for (const side of [-1, 1]) {
+    let idx = -1;
+    B.pts.forEach((p, i) => { if (Math.abs(p[1] - Y) < 2.6 && (idx < 0 || (p[0] - B.pts[idx][0]) * side > 0)) idx = i; });
+    if (idx < 0) idx = B.pts.reduce((m, p, i) => (p[0] * side > B.pts[m][0] * side ? i : m), 0);
+    const A = B.pts[idx]; let N = B.normals[idx];
+    if (N[0] * side < .2) N = norm([N[0] + side * .8, N[1]]);       // never into the body
+    const D = rot(N, swing * (N[0] < 0 ? -1 : 1));
+    const lp = limbPath(N, D, L, curl, w, side > 0);
+    const hand = a[6] > .55 ? `<circle cx="${F(lp.E[0])}" cy="${F(lp.E[1])}" r="${F(w * .66)}" fill="D"/>` : "";
+    out[side < 0 ? "arm-left" : "arm-right"] = { x: A[0] - N[0] * w * .6, y: A[1] - N[1] * w * .6, svg: lp.svg + hand };
+  }
+  return out;
+}
+
+function legs(B, g) {
+  const l = g.l, w = 3.2 + l[3] * 2.8, W = B.maxX - B.minX, cx = (B.maxX + B.minX) / 2;
+  const curl = (l[5] < .5 ? -1 : 1) * (.25 + Math.abs(l[5] - .5) * 1.1), splay = l[4] * .75;
+  const out = {};
+  for (const side of [-1, 1]) {
+    const hx = cx + side * (.1 + l[1] * .26) * W;
+    let idx = -1;
+    B.pts.forEach((p, i) => { if (Math.abs(p[0] - hx) < 2.6 && (idx < 0 || p[1] > B.pts[idx][1])) idx = i; });
+    if (idx < 0) idx = B.pts.reduce((m, p, i) => (p[1] > B.pts[m][1] ? i : m), 0);
+    const A = B.pts[idx], N = B.normals[idx];
+    const D = norm([side * splay + N[0] * .25, 1 + Math.max(0, N[1]) * .25]);
+    const ax = A[0] - N[0] * w * .9, ay = A[1] - N[1] * w * .9;
+    const foot = l[6] > .5 ? w * .6 : 0;
+    const L = Math.min(6 + l[2] * 12, (97 - foot - ay) / Math.max(.5, D[1]));
+    const lp = limbPath([0, 1], D, L, curl, w, side > 0);
+    const shoe = foot ? `<ellipse cx="${F(lp.E[0] + side * w * .45)}" cy="${F(lp.E[1])}" rx="${F(w * (.85 + (l[6] - .5) * .8))}" ry="${F(w * .6)}" fill="D"/>` : "";
+    out[side < 0 ? "leg-left" : "leg-right"] = { x: ax, y: ay, svg: lp.svg + shoe };
+  }
+  return out;
+}
+
+// ---------- antennas: from the top edge outward; (0, 0) is the base, so they sway from there ----------
+
+const ANT_STYLES = ["pelo", "bolita", "hoja", "rizo", "mechón", "brote"];
+function antennaSVG(style, D, L, bend, w, tip) {
+  const E = [D[0] * L, D[1] * L], P = [-D[1], D[0]];
+  const C1 = [D[0] * L * .45 + P[0] * bend * L * .45, D[1] * L * .45 + P[1] * bend * L * .45];
+  const stem = (Ln = 1, width = w) => `<path d="M0 0Q${F(C1[0] * Ln)} ${F(C1[1] * Ln)} ${F(E[0] * Ln)} ${F(E[1] * Ln)}" stroke="D" stroke-width="${F(width)}" fill="none" stroke-linecap="round"/>`;
+  const ang = Math.atan2(D[1], D[0]) * 180 / Math.PI;
+  const leaf = (x, y, a, rx, ry) => `<ellipse cx="0" cy="0" rx="${F(rx)}" ry="${F(ry)}" fill="D" transform="translate(${F(x)} ${F(y)}) rotate(${F(a)}) translate(${F(rx * .8)} 0)"/>`;
+  switch (style) {
+    case 0: return stem(1, w * .7);
+    case 1: return stem() + `<circle cx="${F(E[0])}" cy="${F(E[1])}" r="${F(2.2 * tip)}" fill="D"/>`;
+    case 2: return stem(.8) + leaf(E[0] * .8, E[1] * .8, ang + bend * 25, 3.4 * tip, 1.6 * tip);
+    case 3: { const r = 2 * tip, s = bend < 0 ? 0 : 1;
+      return stem() + `<path d="M${F(E[0])} ${F(E[1])}a${F(r)} ${F(r)} 0 1 ${s} ${F(P[0] * r * 2 * (s ? 1 : -1))} ${F(P[1] * r * 2 * (s ? 1 : -1))}" stroke="D" stroke-width="${F(w)}" fill="none" stroke-linecap="round"/>`; }
+    case 4: return [-.45, 0, .45].map(da => { const d = rot(D, da), l = L * (da ? .7 : .85); return `<path d="M0 0q${F(d[0] * l * .5 + P[0] * bend * l * .3)} ${F(d[1] * l * .5 + P[1] * bend * l * .3)} ${F(d[0] * l)} ${F(d[1] * l)}" stroke="D" stroke-width="${F(w * .7)}" fill="none" stroke-linecap="round"/>`; }).join("");
+    default: return stem(.65) + leaf(E[0] * .65, E[1] * .65, ang - 40, 2.6 * tip, 1.3 * tip) + leaf(E[0] * .65, E[1] * .65, ang + 40, 2.6 * tip, 1.3 * tip);
+  }
+}
+
+function antennas(B, g) {
+  const t = g.t, two = t[2] >= .5, style = Math.min(5, Math.floor(t[1] * 6));
+  const L = 5 + t[3] * 11, bend = (t[4] - .5) * 2, spread = t[5], side = (t[6] - .5) * 2, tip = .75 + t[7] * .9, w = 2.2;
+  const Wd = B.maxX - B.minX, cx = (B.maxX + B.minX) / 2;
+  const xs = two ? [-1, 1].map(k => cx + k * (.08 + spread * .2) * Wd + side * Wd * .1) : [cx + side * Wd * .25];
+  const out = {};
+  xs.forEach((hx, k) => {
+    let idx = -1;
+    B.pts.forEach((p, i) => { if (Math.abs(p[0] - hx) < 2.6 && (idx < 0 || p[1] < B.pts[idx][1])) idx = i; });
+    if (idx < 0) idx = B.pts.reduce((m, p, i) => (p[1] < B.pts[m][1] ? i : m), 0);
+    const A = B.pts[idx], N = B.normals[idx], lean = two ? (k ? 1 : -1) * (.15 + spread * .45) : side * .3;
+    const D = norm([N[0] * .5 + lean, Math.min(N[1], -.3) - .6]);       // mostly up, a little out
+    const Lk = Math.max(3, Math.min(L, (A[1] - 2 - 2.5 * tip) / Math.max(.4, -D[1])));   // stays inside the 100 × 100 canvas
+    out[`antenna-${k + 1}`] = { x: A[0] - N[0] * 1.2, y: A[1] - N[1] * 1.2, svg: antennaSVG(style, D, Lk, two && !k ? -bend : bend, w, tip) };
+  });
+  return out;
+}
+
+// ---------- the whole creature ----------
+
+function dark(color, k = .76) {
+  return "#" + [1, 3, 5].map(i => Math.floor(parseInt(color.slice(i, i + 2), 16) * k).toString(16).padStart(2, "0")).join("");
+}
+const lum = c => { const [r, g, b] = [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16) / 255); return .3 * r + .59 * g + .11 * b; };
+const svgDoc = (box, inner, extra = "") => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${box}"${extra}>${inner}</svg>\n`;
+const paint = (s, c) => s.replaceAll('"C"', `"${c}"`).replaceAll('"D"', `"${dark(c)}"`).replaceAll('"K"', `"${lum(c) < .42 ? "#fff" : INK}"`);
+
+// ---------- the skeleton: the same creature in bone, a layer of its own ----------
+// same silhouette (body and limbs), a socket for each eye (one for a cyclops), and the mouth shape, plain, only if it has one
+
+const BONE = "#efe7d4", BONE_D = "#dccfb2", HOLE = "#1d1416";
+function eyeRadius(e, f) {
+  const z = f[0], st = eyeDraw(e);
+  return st === 6 ? 5 + z * 4 : st === 1 ? 3.4 + z * 3.2 : st === 9 ? 3 + z * 2.5 : st === 0 ? 1.9 + z * 2 : st === 2 ? 2.4 + z * 1.9 : 2.8 + z * 2;
+}
+// the bone is not a scaled copy: it is the body's own outline pulled inward by a margin, so it never touches the skin
+const socketR = (e, f) => eyeRadius(e, f) * 1.12 + .5;    // an eye socket: this wide, 1.15 times as tall
+function boneShape(B) {                                    // the body bone, worked out once per body: { pts, path }
+  if (B.bone) return B.bone;
+  let r = null;
+  for (const m of [Math.max(3.5, Math.min(7, B.deep * .22)), 3, 2]) if ((r = insetPath(B, m))) break;
+  return (B.bone = r || { pts: B.pts, path: B.path });
+}
+function insetPath(B, m) {
+  const at = (x, y) => {                                   // distance to the skin, from the body's depth grid (bilinear)
+    const fx = (x - 1) / 2, fy = (y - 1) / 2, i = Math.floor(fx), j = Math.floor(fy), u = fx - i, v = fy - j;
+    const D = (a, b) => (a < 0 || b < 0 || a > 49 || b > 49 ? 0 : B.depth[b][a]);
+    return D(i, j) * (1 - u) * (1 - v) + D(i + 1, j) * u * (1 - v) + D(i, j + 1) * (1 - u) * v + D(i + 1, j + 1) * u * v;
+  };
+  const loop = trace((u, v) => m - at(50 + u * 24.4, 50 + v * 24.4), 90);
+  if (loop.length < 20) return null;
+  const pts = resample(smooth(loop.map(([u, v]) => [50 + u * 24.4, 50 + v * 24.4]), 3), 90);
+  return area(pts) < 40 ? null : { pts, path: curve(pts) };
+}
+const thinBone = s => s                                   // limb bones: the same line, about half as thick, inside the limb
+  .replace(/stroke-width="([\d.]+)"/g, (_, w) => `stroke-width="${F(w * .5)}"`)
+  .replace(/ (r|rx|ry)="([\d.]+)"/g, (_, k, v) => ` ${k}="${F(v * .55)}"`);
+const boneLimb = s => thinBone(s).replaceAll('"D"', `"${BONE_D}"`).replaceAll('"C"', `"${BONE}"`);
+function skeletonSVG(B, g, face, limbs) {                 // → { composite, body }: the whole skeleton, and the body bone alone
+  const bone = boneLimb, out = [];
+  for (const id of ["antenna-1", "antenna-2", "leg-left", "leg-right", "arm-left", "arm-right"]) if (limbs[id]) out.push(`<g transform="translate(${F(limbs[id].x)} ${F(limbs[id].y)})">${bone(limbs[id].svg)}</g>`);
+  const path = boneShape(B).path;
+  out.push(`<path d="${path}" fill="${BONE}"/>`);
+  const f = g.f, r = socketR(g.e, f), xs = eyeDraw(g.e) === 6 ? [0] : [-eyeGap(f, g.e), eyeGap(f, g.e)], s = face.s, holes = [];
+  holes.push(`<g transform="translate(${F(face.x)} ${F(face.y)}) scale(${F(s)})">${xs.map(x => `<ellipse cx="${F(x)}" cy="0" rx="${F(r)}" ry="${F(r * 1.15)}" fill="${HOLE}"/>`).join("")}</g>`);
+  if (g.m) {
+    const m = mouthSVG(g.m, f).replaceAll('"K"', `"${HOLE}"`).replaceAll(INK, HOLE).replaceAll("#e86a7a", HOLE).replaceAll('"#fff"', `"${HOLE}"`);
+    holes.push(`<g transform="translate(${F(face.x)} ${F(face.y + mouthY(f) * s)}) scale(${F(s)})">${m}</g>`);
+  }
+  const bodyBone = `<path d="${path}" fill="${BONE}"/><defs><clipPath id="bone"><path d="${path}"/></clipPath></defs><g clip-path="url(#bone)">${holes.join("")}</g>`;   // holes stay on the bone
+  out.pop(); out.push(bodyBone);
+  return { composite: svgDoc("0 0 100 100", out.join("")), body: svgDoc("0 0 100 100", bodyBone) };
+}
+
+// ---------- the insides: noodles packed in the body, a layer of their own ----------
+
+const GUT = "#ec7d87", GUT_D = "#a8323f", GUT_L = "#f8b6bc", FLESH_IN = "#7a1a28";
+function insidesSVG(B, g) {
+  const r = seeded("insides|" + genome(g)), lumps = [], strands = [];
+  const open = pts => { let d = `M${F(pts[0][0])} ${F(pts[0][1])}`; for (let i = 1; i < pts.length - 1; i++) { const mx = (pts[i][0] + pts[i + 1][0]) / 2, my = (pts[i][1] + pts[i + 1][1]) / 2; d += `Q${F(pts[i][0])} ${F(pts[i][1])} ${F(mx)} ${F(my)}`; } const l = pts[pts.length - 1]; return d + `L${F(l[0])} ${F(l[1])}`; };
+  const LUMP = ["#c94a5a", "#e06a78", "#9e2c3c", "#d65c6b"];
+  for (let y = B.minY + 3; y < B.maxY; y += 6.5) for (let x = B.minX + 3; x < B.maxX; x += 6.5) {
+    const jx = x + (r() - .5) * 4, jy = y + (r() - .5) * 4;
+    if (depthAt(B, jx, jy) < 1.5) continue;
+    if (r() < .55) {                                       // a short noodle that curls where it fits
+      let px = jx, py = jy, a = r() * 6.283; const pts = [[px, py]];
+      for (let k = 0; k < 5; k++) { a += (r() - .5) * 2.2; const nx = px + Math.cos(a) * 3.6, ny = py + Math.sin(a) * 3.6; if (depthAt(B, nx, ny) < 1.2) break; px = nx; py = ny; pts.push([px, py]); }
+      if (pts.length >= 3) { const d = open(pts);
+        strands.push(`<path d="${d}" stroke="${GUT_D}" stroke-width="4.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" stroke="${GUT}" stroke-width="2.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" stroke="${GUT_L}" stroke-width=".8" fill="none" stroke-linecap="round" transform="translate(-.5 -.5)"/>`); }
+    } else {                                               // a lump
+      const rr = 1.8 + r() * 2;
+      lumps.push(`<circle cx="${F(jx)}" cy="${F(jy)}" r="${F(rr)}" fill="${LUMP[Math.floor(r() * LUMP.length)]}"/><circle cx="${F(jx - rr * .3)}" cy="${F(jy - rr * .3)}" r="${F(rr * .35)}" fill="${GUT_L}" opacity=".6"/>`);
+    }
+  }
+  return svgDoc("0 0 100 100", `<defs><clipPath id="in"><path d="${B.path}"/></clipPath></defs><g clip-path="url(#in)"><path d="${B.path}" fill="${FLESH_IN}"/>${lumps.join("")}${strands.join("")}</g>`);
+}
+
+const layerCache = new Map();
+function render(g) {
+  const B = body(g.s), face = placeFace(B, g), color = PALETTE[g.c];
+  const limbs = Object.assign({}, isOn("antennas", g) ? antennas(B, g) : {}, isOn("legs", g) ? legs(B, g) : {}, isOn("arms", g) ? arms(B, g, face) : {});
+  const pieces = {}, anchors = {}, groups = [];
+  const put = (id, x, y, s, inner, local) => {
+    anchors[id] = s === 1 ? { x: +F(x), y: +F(y) } : { x: +F(x), y: +F(y), scale: +F(s) };
+    groups.push(`<g id="${id}" transform="translate(${F(x)} ${F(y)})${s === 1 ? "" : ` scale(${F(s)})`}">${inner}</g>`);
+    pieces[id] = paint(svgDoc(local ? "-50 -50 100 100" : "0 0 100 100", inner), color);
+  };
+  for (const id of ["antenna-1", "antenna-2", "leg-left", "leg-right", "arm-left", "arm-right"]) if (limbs[id]) put(id, limbs[id].x, limbs[id].y, 1, limbs[id].svg, true);
+  groups.push(`<g id="body"><path d="${B.path}" fill="C"/></g>`);
+  pieces.body = paint(svgDoc("0 0 100 100", `<path d="${B.path}" fill="C"/>`), color);
+  const s = face.s, g9 = eyeGap(g.f, g.e);
+  if (g.f[8] > .62) { const bx = g.e === 5 ? 7 : g9 + 1.5, my = mouthY(g.f) * .45 + 1.5;
+    put("blush", face.x, face.y, s, `<ellipse cx="${F(-bx)}" cy="${F(my)}" rx="3" ry="1.8" fill="#ff6f86" opacity=".45"/><ellipse cx="${F(bx)}" cy="${F(my)}" rx="3" ry="1.8" fill="#ff6f86" opacity=".45"/>`, true); }
+  put("eyes", face.x, face.y, s, eyesSVG(g.e, g.f), true);
+  if (g.m) put("mouth", face.x, face.y + mouthY(g.f) * s, s, mouthSVG(g.m, g.f), true);
+  const key = genome(g);                                   // skeleton and insides take a moment to build: keep them per genome
+  let L = layerCache.get(key);
+  if (!L) { const sk = skeletonSVG(B, g, face, limbs); L = { skeleton: sk.composite, boneBody: sk.body, insides: insidesSVG(B, g) }; layerCache.set(key, L); if (layerCache.size > 400) layerCache.delete(layerCache.keys().next().value); }
+  pieces.skeleton = L.skeleton; pieces.insides = L.insides; pieces["bone-body"] = L.boneBody;
+  for (const id of ["antenna-1", "antenna-2", "leg-left", "leg-right", "arm-left", "arm-right"]) if (limbs[id]) pieces["bone-" + id] = svgDoc("-50 -50 100 100", boneLimb(limbs[id].svg));   // same anchors as the flesh limbs
+  const creature = paint(svgDoc("0 0 100 100", groups.join(""), ` data-genome="${genome(g)}"`), color);
+  return { creature, pieces, anchors, ok: B.ok && face.fit };
+}
+
+// ---------- making genomes: random, mutated, crossed ----------
+
+const PARTS = ["shape", "face", "antennas", "arms", "legs", "color"];
+const NEUTRAL_FACE = { f: [.45, .5, .3, .5, .5, .5, .35, .4, 0, .5].map(qv), e: 0, m: 5 };
+const NO_ARMS = { a: [0, .5, .5, .5, .5, .5, .5].map(qv) }, NO_LEGS = { l: [0, .5, .5, .5, .5, .5, .5].map(qv) };
+const NO_ANT = { t: [0, .5, .5, .5, .5, .5, .5, .5].map(qv) };
+const rnd = (r, n) => Array.from({ length: n }, () => qv(r()));
+
+function randomShape(r) {                    // most random bodies have one or two features, not all at once
+  const s = rnd(r, NS), keys = Object.keys(FAMILY_GENES);
+  const k = r() < .3 ? 0 : r() < .75 ? 1 : 2, on = new Set();
+  while (on.size < k) on.add(keys[Math.floor(r() * keys.length)]);
+  for (const key of keys) { const [i, t] = FAMILY_GENES[key]; s[i] = qv(on.has(key) ? t + (1 - t) * (.15 + .85 * r()) : r() * t * .9); }
+  if (r() < .5) s[14] = qv(.3 + r() * .4);    // half of them straight
+  s[12] = qv(r() * .8);
+  return s;
+}
+
+function randomPart(p, r) {
+  if (p === "shape") return { s: randomShape(r) };
+  if (p === "face") return { f: rnd(r, NF), e: Math.floor(r() * NE), m: Math.floor(r() * 10) };
+  if (p === "antennas") return { t: rnd(r, NT) };
+  if (p === "arms") return { a: rnd(r, NL) };
+  if (p === "legs") return { l: rnd(r, NL) };
+  return { c: Math.floor(r() * PALETTE.length) };
+}
+
+function partOf(p, g) {
+  if (p === "shape") return { s: g.s };
+  if (p === "face") return { f: g.f, e: g.e, m: g.m };
+  if (p === "antennas") return { t: g.t };
+  if (p === "arms") return { a: g.a };
+  if (p === "legs") return { l: g.l };
+  return { c: g.c };
+}
+
+function mutatePart(p, v, r, sigma) {
+  const mv = arr => arr.map(x => r() < .5 ? qv(x + gauss(r) * sigma) : x);
+  if (p === "shape") return { s: mv(v.s) };
+  if (p === "face") return { f: mv(v.f), e: r() < sigma * .8 ? Math.floor(r() * NE) : v.e, m: r() < sigma * .8 ? Math.floor(r() * 10) : v.m };
+  if (p === "antennas") return { t: mv(v.t) };
+  if (p === "arms") return { a: mv(v.a) };
+  if (p === "legs") return { l: mv(v.l) };
+  return { c: r() < sigma * 1.5 ? Math.floor(r() * PALETTE.length) : v.c };
+}
+
+function crossPart(p, a, b, r) {
+  const mix = (x, y) => x.map((v, i) => r() < .5 ? v : y[i]);
+  if (p === "shape") return { s: mix(a.s, b.s) };
+  if (p === "face") return { f: mix(a.f, b.f), e: r() < .5 ? a.e : b.e, m: r() < .5 ? a.m : b.m };
+  if (p === "antennas") return { t: mix(a.t, b.t) };
+  if (p === "arms") return { a: mix(a.a, b.a) };
+  if (p === "legs") return { l: mix(a.l, b.l) };
+  return r() < .5 ? a : b;
+}
+
+const compose = (...parts) => Object.assign({}, ...parts);
+const fitCache = new Map();                                // a blob is made only if its body traced well and its face (sockets too) fits
+function goodBlob(g) {
+  const B = body(g.s); if (!B.ok) return false;
+  const key = hexOf(g.s) + hexOf(g.f) + g.e + "." + g.m;
+  let v = fitCache.get(key); if (v === undefined) { v = placeFace(B, g).fit; fitCache.set(key, v); if (fitCache.size > 4000) fitCache.delete(fitCache.keys().next().value); }
+  return v;
+}
+
+// ---------- what you like: one small model per part ----------
+
+const b3 = v => v < .34 ? 0 : v < .67 ? 1 : 2, b4 = v => Math.min(3, Math.floor(v * 4));
+
+function feats(p, g) {
+  const fam = famOf(g.s), k = [];
+  if (p === "shape") {
+    k.push(`fam=${fam}`, `asp=${b3(g.s[0])}`, `${fam}|asp=${b3(g.s[0])}`);
+    for (const i of [1, 2, 4, 5, 7, 8, 10, 11, 12, 14]) k.push(`s${i}=${b4(g.s[i])}`);
+  } else if (p === "face") {
+    k.push(`e=${g.e}`, `m=${g.m}`, `em=${g.e}.${g.m}`, `${fam}|e=${g.e}`, `${fam}|m=${g.m}`);
+    g.f.forEach((v, i) => k.push(`f${i}=${b3(v)}`));
+    for (const i of [0, 2, 3, 9]) k.push(`${fam}|f${i}=${b3(g.f[i])}`);
+  } else if (p in LIMB_KEY) {
+    const t = LIMB_KEY[p], arr = g[t], on = isOn(p, g) ? 1 : 0;
+    k.push(`${t}=${on}`, `${fam}|${t}=${on}`);
+    if (on) {
+      for (let i = 1; i < arr.length; i++) k.push(`${t}${i}=${b3(arr[i])}`);
+      for (const i of [1, 2, 4]) k.push(`${fam}|${t}${i}=${b3(arr[i])}`);
+      if (t === "t") k.push(`t1s=${Math.min(5, Math.floor(arr[1] * 6))}`, `${fam}|t1s=${Math.min(5, Math.floor(arr[1] * 6))}`);
+    }
+  } else k.push(`c=${g.c}`, `${fam}|c=${g.c}`);
+  return k;
+}
+
+const rms2 = (x, y, from = 0) => { let s = 0; for (let i = from; i < x.length; i++) s += (x[i] - y[i]) ** 2; return s / (x.length - from); };
+function dist2(p, g, h) {
+  if (p === "shape") return rms2(g.s, h.s);
+  if (p === "face") return rms2(g.f, h.f) + (g.e !== h.e) * .06 + (g.m !== h.m) * .03;
+  if (p in LIMB_KEY) { const on1 = isOn(p, g), on2 = isOn(p, h), k = LIMB_KEY[p]; return on1 !== on2 ? 1 : !on1 ? 0 : rms2(g[k], h[k], 1); }
+  return g.c === h.c ? 0 : 1;
+}
+const BAND = { shape: .09, face: .1, antennas: .13, arms: .13, legs: .13, color: .2 };
+
+// a vote → rows per part: [part, liked?, weight]
+// "all" is the whole creature; "blob" is the whole creature but its color (the corral never judges color)
+const BLOB = ["shape", "face", "antennas", "arms", "legs"];
+function expand(kind, part) {
+  if (kind === "bad") return PARTS.map(p => p === part ? [p, 0, 1] : [p, 1, .3]);   // only that part was wrong
+  const list = part === "all" ? PARTS : part === "blob" ? BLOB : null;
+  if (kind === "yes") return list ? list.map(p => [p, 1, 1]) : [[part, 1, 1]];
+  if (kind === "no") return list ? list.map(p => [p, 0, part === "blob" ? .8 : .6]) : [[part, 0, 1]];
+  if (kind === "meh") return list ? list.map(p => [p, 0, .2]) : [[part, 0, .3]];
+  return [];
+}
+
+// Whole-creature votes say "this one", not "because of what". Look at the opposite votes that are
+// almost the same creature: the parts where they differ are what decided it.
+//   no that matches a yes in everything but the face → the face is to blame, the rest barely counts
+//   yes that matches a no in everything but the arms → the arms are what you liked
+//   no on a near copy of a yes → a contradiction: the yes was probably an accident, it loses weight
+const sameness = (p, a, b) => Math.exp(-dist2(p, a, b) / (2 * BAND[p] ** 2));   // 1 = same part, 0 = unrelated
+function attribute(events) {
+  const whole = [];
+  events.forEach((e, i) => { if ((e.part === "all" || e.part === "blob") && (e.kind === "yes" || e.kind === "no")) whole.push(i); });
+  const out = new Map();
+  for (const i of whole) {
+    const e = events[i], liked = e.kind === "yes", diff = BLOB.map(() => 0);
+    let near = 0, clash = 0, later = 0;
+    for (const j of whole) {
+      const o = events[j]; if ((o.kind === "yes") === liked) continue;
+      const s0 = sameness("shape", e.g, o.g), s1 = sameness("face", e.g, o.g);
+      if (s0 < .05 && s1 < .05) continue;                                               // two parts unrelated: not the same creature
+      const s = [s0, s1, ...BLOB.slice(2).map(p => sameness(p, e.g, o.g))];
+      const d = s.map(v => -Math.log(v + 1e-9)).sort((x, y) => x - y); d.pop();        // the same creature, except for one part?
+      const S = Math.exp(-d.reduce((x, y) => x + y, 0) / d.length);
+      if (S < .15) continue;
+      if (1 - Math.min(...s) < .35) { clash += S; if (j > i) later += S; continue; }     // near copy with the opposite vote
+      near += S; s.forEach((v, k) => (diff[k] += S * (1 - v)));
+    }
+    if (!near && !clash) continue;
+    const sure = near / (near + .6), w = {};
+    BLOB.forEach((p, k) => { const a = near ? clamp(.2 + 1.6 * diff[k] / near, .15, 1.8) : 1; w[p] = 1 + (a - 1) * sure; });
+    if (liked && clash) for (const p of BLOB) w[p] /= 1 + clash + 2 * later;           // a yes taken back by later no's fades most
+    out.set(i, w);
+  }
+  return out;
+}
+
+function train(rows) {
+  const w = new Map(); let bias = 0;
+  const W = rows.reduce((s, r) => s + r.w, 0);
+  for (let epoch = 0; epoch < 150 && rows.length; epoch++) {
+    const grad = new Map(); let gb = 0;
+    for (const r of rows) {
+      let z = bias; for (const k of r.f) z += w.get(k) || 0;
+      const e = (1 / (1 + Math.exp(-z)) - r.y) * r.w;
+      gb += e; for (const k of r.f) grad.set(k, (grad.get(k) || 0) + e);
+    }
+    bias -= 1.5 * gb / W;
+    for (const [k, gk] of grad) { const v = w.get(k) || 0; w.set(k, v - 2 * (gk / W + .006 * v)); }
+  }
+  return { w, bias };
+}
+
+class Brain {
+  constructor() { this.events = []; this.cache = null; }
+  add(kind, part, g) { this.events.push({ kind, part, g, s: genome(g) }); this.cache = null; }
+  text() { return this.events.map(e => `${e.kind} ${e.part} ${e.s}`).join("\n") + "\n"; }
+  read(text) {
+    let n = 0;
+    for (const line of (text || "").split("\n")) {
+      const m = line.trim().match(/^(yes|no|meh|bad) (all|blob|shape|face|antennas|arms|legs|color) (.+)$/);
+      if (!m) continue;
+      try { this.add(m[1], m[2], parseGenome(m[3])); n++; } catch (e) {}
+    }
+    return n;
+  }
+  m(p) {
+    if (!this.cache) {
+      const by = Object.fromEntries(PARTS.map(q => [q, []]));
+      const credit = attribute(this.events);
+      this.events.forEach((ev, i) => { const c = credit.get(i); for (const [q, y, w] of expand(ev.kind, ev.part)) by[q].push({ g: ev.g, s: ev.s, y, w: w * (c && q in c ? c[q] : 1), i, f: feats(q, ev.g) }); });
+      this.cache = Object.fromEntries(PARTS.map(q => [q, Object.assign({ rows: by[q] }, train(by[q]))]));
+    }
+    return this.cache[p];
+  }
+  weight(p, k) { return this.m(p).w.get(k) || 0; }
+  // the model says what kind of thing you like; nearness to what you voted says which exact one
+  score(p, g) {
+    const M = this.m(p), h2 = 2 * BAND[p] ** 2;
+    let z = 0; for (const k of feats(p, g)) z += M.w.get(k) || 0;
+    let near = 0;
+    for (const r of M.rows) { const d = dist2(p, g, r.g); if (d < 4.5 * h2) near += r.w * (r.y ? 1 : -1.3) * Math.exp(-d / h2); }
+    return z + 1.6 * Math.tanh(near * .6);
+  }
+  total(g) { return PARTS.reduce((s, p) => s + this.score(p, g), 0); }
+  parents(p) {
+    const M = this.m(p), seen = new Set(), out = [];
+    for (let i = M.rows.length - 1; i >= 0 && out.length < 80; i--) {
+      const r = M.rows[i];
+      if (r.y !== 1) continue;
+      const key = hexOf(Object.values(partOf(p, r.g)).flat());
+      if (seen.has(key)) continue;
+      seen.add(key); out.push({ v: partOf(p, r.g), w: r.w * (1 - out.length / 120) });
+    }
+    return out;
+  }
+  // how sure: how many votes this part has seen
+  votes(p) { return this.m(p).rows.length; }
+}
+
+function pickW(items, ws, r) { let t = 0; const c = ws.map(x => (t += x)); const x = r() * t; const i = c.findIndex(v => v >= x); return items[i < 0 ? items.length - 1 : i]; }
+
+function tuning(brain, polish) {
+  const n = brain.events.length;
+  return { explore: Math.max(.06, .45 * Math.pow(.62, polish), n < 30 ? .5 : 0), sigma: Math.max(.025, .15 * Math.pow(.75, polish)), temp: Math.max(.3, 1.1 * Math.pow(.82, polish)) };
+}
+
+function genPart(brain, p, r, t) {
+  const ps = brain.parents(p);
+  if (!ps.length || r() < t.explore) return randomPart(p, r);
+  let v = pickW(ps, ps.map(x => x.w), r).v;
+  if (ps.length > 1 && r() < .25) v = crossPart(p, v, pickW(ps, ps.map(x => x.w), r).v, r);
+  return mutatePart(p, v, r, t.sigma);
+}
+
+// choose n among scored candidates: the better more likely, never two almost the same
+function choose(cands, n, temp, r, taken = new Set()) {
+  const out = [], left = cands.filter(c => !taken.has(genome(c.g)));
+  while (out.length < n && left.length) {
+    const top = Math.max(...left.map(c => c.score));
+    const c = pickW(left, left.map(x => Math.exp((x.score - top) / temp)), r);
+    left.splice(left.indexOf(c), 1);
+    if (out.some(o => rms2(o.g.s, c.g.s) < .002 && o.g.e === c.g.e)) continue;
+    out.push(c); taken.add(genome(c.g));
+  }
+  return out.map(c => c.g);
+}
+
+function batchResults(brain, polish, r, n = 20) {
+  const t = tuning(brain, polish), cands = [];
+  for (let i = 0; i < n * 14; i++) {
+    const g = compose(...PARTS.map(p => genPart(brain, p, r, t)));
+    cands.push({ g, score: brain.total(g) });
+  }
+  return choose(cands, n, t.temp, r).filter(goodBlob);
+}
+
+// one test page: only `part` changes; the rest is the best guess so far (or plain)
+function batchStage(brain, polish, part, r, n = 12) {
+  const t = tuning(brain, polish), sure = { explore: .1, sigma: t.sigma * .6 };
+  const best = p => {                       // a good guess for a part that is not being tested
+    let top = null;
+    for (let i = 0; i < 8; i++) { const v = genPart(brain, p, r, sure), s = brain.score(p, compose(randomPart("shape", r), NEUTRAL_FACE, NO_ANT, NO_ARMS, NO_LEGS, { c: 0 }, v)); if (!top || s > top.s) top = { v, s }; }
+    return top.v;
+  };
+  const base = () => {
+    const b = { shape: best("shape"), face: NEUTRAL_FACE, antennas: NO_ANT, arms: NO_ARMS, legs: NO_LEGS, color: best("color") };
+    if (part !== "shape") b.face = best("face");
+    if (part !== "shape" && part !== "face") b.antennas = best("antennas");
+    if (part === "legs" || part === "color") b.arms = best("arms");
+    if (part === "color") b.legs = best("legs");
+    return b;
+  };
+  const out = [], seen = new Set();
+  for (let i = 0; out.length < n && i < n * 6; i++) {
+    const b = base();
+    let v;
+    if (i % 2) v = randomPart(part, r);     // half new, to keep finding things
+    else {                                  // half what the model expects you like
+      const cs = [];
+      for (let k = 0; k < 10; k++) { const pv = genPart(brain, part, r, t); cs.push({ g: compose(...PARTS.map(p => p === part ? pv : b[p])), score: 0 }); }
+      cs.forEach(c => (c.score = brain.score(part, c.g)));
+      v = partOf(part, choose(cs, 1, t.temp, r)[0]);
+    }
+    if (part in LIMB_KEY) {          // a few without, so "none" can win too
+      const key = LIMB_KEY[part], want = out.filter(g => !isOn(part, g)).length < Math.round(n / 4);
+      if (want && i % 4 === 3) v = { [key]: [0, ...v[key].slice(1)] };
+      else if (v[key][0] < LIMB_ON[part]) v = { [key]: [qv(.7 + r() * .3), ...v[key].slice(1)] };
+    }
+    if (part === "color" && out.some(g => g.c === v.c)) continue;
+    const g = compose(...PARTS.map(p => p === part ? v : b[p]));
+    if (seen.has(genome(g)) || !goodBlob(g)) continue;
+    seen.add(genome(g)); out.push(g);
+  }
+  for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [out[i], out[j]] = [out[j], out[i]]; }
+  return out;
+}
+
+// ---------- zip, stored, no compression ----------
+
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(bytes) { let c = ~0; for (const x of bytes) c = CRC[(c ^ x) & 255] ^ (c >>> 8); return ~c >>> 0; }
+
+function zip(files) {                        // [[name, text]] → Uint8Array
+  const enc = new TextEncoder(), chunks = [], central = [];
+  const now = new Date(), time = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+  const date = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  let off = 0;
+  for (const [name, text] of files) {
+    const nb = enc.encode(name), data = enc.encode(text), crc = crc32(data);
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true);
+    h.setUint16(10, time, true); h.setUint16(12, date, true); h.setUint32(14, crc, true);
+    h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, nb.length, true);
+    chunks.push(new Uint8Array(h.buffer), nb, data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true);
+    c.setUint16(12, time, true); c.setUint16(14, date, true); c.setUint32(16, crc, true);
+    c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, nb.length, true); c.setUint32(42, off, true);
+    central.push(new Uint8Array(c.buffer), nb);
+    off += 30 + nb.length + data.length;
+  }
+  const size = central.reduce((s, a) => s + a.length, 0), e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
+  e.setUint32(12, size, true); e.setUint32(16, off, true);
+  const all = chunks.concat(central, [new Uint8Array(e.buffer)]), out = new Uint8Array(all.reduce((s, a) => s + a.length, 0));
+  let p = 0; for (const a of all) { out.set(a, p); p += a.length; }
+  return out;
+}
+
+function sheet(gs, cols = 10) {
+  const rows = Math.ceil(gs.length / cols) || 1;
+  const cells = gs.map((g, i) => { const s = render(g).creature; return `<g transform="translate(${(i % cols) * 100} ${Math.floor(i / cols) * 100})">${s.slice(s.indexOf(">") + 1, s.lastIndexOf("</svg>"))}</g>`; });
+  return svgDoc(`0 0 ${cols * 100} ${rows * 100}`, `<rect width="100%" height="100%" fill="#fff"/>${cells.join("")}`, ` width="${cols * 100}" height="${rows * 100}"`);
+}
+
+// a pack: one folder per creature, every piece apart and where it goes, ready to animate
+function pack(gs, votes) {
+  const files = [];
+  gs.forEach((g, i) => {
+    const dir = `blober/${String(i + 1).padStart(4, "0")}/`, R = render(g);
+    files.push([dir + "creature.svg", R.creature]);
+    for (const [name, s] of Object.entries(R.pieces)) files.push([dir + name + ".svg", s]);
+    files.push([dir + "anchors.json", JSON.stringify({ family: famOf(g.s), ...R.anchors }, null, 1) + "\n"]);
+    files.push([dir + "genome.txt", genome(g) + "\n"]);
+  });
+  files.push(["blober/sheet.svg", sheet(gs)]);
+  files.push(["blober/README.txt", `blober ${VERSION}\n\nsheet.svg: all of them at once.\nEach folder is one creature:\n` +
+    `  insides.svg    what is inside: noodles packed in the body shape, a layer of its own\n` +
+    `  skeleton.svg   the same creature in bone (eye sockets, the mouth shape if it has one), a layer of its own\n` +
+    `  creature.svg   the whole creature; each piece is a group with an id (body, eyes, mouth, blush,\n` +
+    `                 arm-left, arm-right, leg-left, leg-right) moved to where it goes\n` +
+    `  body.svg       the body alone on its 100 x 100 canvas\n` +
+    `  eyes.svg, mouth.svg, blush.svg, arm-*.svg, leg-*.svg   each drawn around (0, 0): for arms and legs\n` +
+    `                 (0, 0) is the shoulder or hip, so rotating around it moves the limb naturally\n` +
+    `  anchors.json   where each piece goes on the 100 x 100 canvas (x, y and scale)\n` +
+    `  genome.txt     the line that makes it again\n`]);
+  if (votes) files.push(["blober/votes.txt", votes]);
+  return zip(files);
+}
+
+if (typeof module !== "undefined") module.exports = { seeded, genome, parseGenome, famOf, body, render, Brain, PARTS, batchResults, batchStage, randomPart, compose, partOf, pack, zip, sheet, isOn, tuning, attribute, genPart, choose, placeFace, goodBlob, boneShape, socketR, NEUTRAL_FACE, NO_ARMS, NO_LEGS, NO_ANT, PALETTE };
+
+</script>
+
+<script>
+{
+"use strict";
+// ======================================================================
+// blober: an endless floor seen from a camera. Everything below is in world pixels
+// (x across, z into the floor, h up), drawn through one camera transform.
+// ======================================================================
+
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d", { alpha: false }), $ = id => document.getElementById(id);
+const scratch = document.createElement("canvas"), sctx = scratch.getContext("2d");
+let W = 0, H = 0, DPR = 1;
+function resize() { DPR = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight; cv.width = scratch.width = W * DPR; cv.height = scratch.height = H * DPR; }
+addEventListener("resize", resize); resize();
+
+const rand = seeded(String(Date.now()) + Math.random());
+const MAX = 400, G = 1500, S = 1.3;           // S: world pixels per creature unit (a creature is 100 units)
+const darkQ = matchMedia("(prefers-color-scheme: dark)");
+const nightNow = () => document.documentElement.dataset.theme === "dark" || (document.documentElement.dataset.theme !== "light" && darkQ.matches);
+let NIGHT = nightNow(); const night = () => NIGHT;   // read once per frame, not once per shadow
+const LOD_PX = 40;                                    // smaller than this on screen: drawn as one picture, not ten pieces
+
+// ---------- camera ----------
+
+const cam = { x: 0, z: 0, zoom: 1 };
+const toWorld = (sx, sy) => ({ x: (sx - W / 2) / cam.zoom + cam.x, z: (sy - H / 2) / cam.zoom + cam.z });
+const toScreen = (x, z) => ({ sx: (x - cam.x) * cam.zoom + W / 2, sy: (z - cam.z) * cam.zoom + H / 2 });
+const worldT = g => g.setTransform(DPR * cam.zoom, 0, 0, DPR * cam.zoom, DPR * (W / 2 - cam.x * cam.zoom), DPR * (H / 2 - cam.z * cam.zoom));
+function zoomAt(sx, sy, f) {
+  const before = toWorld(sx, sy);
+  cam.zoom = clamp(cam.zoom * f, .2, 3);
+  const after = toWorld(sx, sy); cam.x += before.x - after.x; cam.z += before.z - after.z;
+}
+
+// custom cursor: a rounded triangle
+const cursorOf = (fill, stroke, s = 1) => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30"><path transform="scale(${s})" d="M5 5L23 13L12 23Z" fill="${fill}" stroke="${stroke}" stroke-width="3.2" stroke-linejoin="round"/></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 4 4, auto`;
+};
+const cameraOf = (fill, lens) => {                        // photo mode: a little camera, aimed from its lens
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34"><path d="M11 8.5l1.8-3h8.4l1.8 3H28a3 3 0 0 1 3 3V25a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V11.5a3 3 0 0 1 3-3z" fill="${fill}" stroke="#1d1820" stroke-width="2.6" stroke-linejoin="round"/><circle cx="17" cy="18" r="6" fill="${lens}" stroke="#1d1820" stroke-width="2.6"/><circle cx="26" cy="12.5" r="1.4" fill="#1d1820"/></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 17 18, crosshair`;
+};
+// the cursor: the triangle (pink over a blob, dark while holding one), a d-pad while moving the floor, a camera in photo mode
+const icon = (body, hx, hy, fallback) => `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">${body}</svg>`)}") ${hx} ${hy}, ${fallback}`;
+const CUR = {
+  idle: cursorOf("#fff", "#1d1820"),
+  over: cursorOf("#ff6f86", "#1d1820"),                  // over a blob: the same triangle, pink
+  grab: cursorOf("#1d1820", "#fff", .85),                // holding one: the same triangle, dark and pressed
+  pan: icon(`<g stroke-linejoin="round"><path d="M16 3.4l3.5 5h-7zM16 28.6l3.5-5h-7zM3.4 16l5-3.5v7zM28.6 16l-5-3.5v7z" fill="#fff" stroke="#fff" stroke-width="3.4"/>` +
+    `<circle cx="16" cy="16" r="3.8" fill="#fff"/><path d="M16 3.4l3.5 5h-7zM16 28.6l3.5-5h-7zM3.4 16l5-3.5v7zM28.6 16l-5-3.5v7z" fill="#1d1820" stroke="#1d1820" stroke-width="1.2"/>` +
+    `<circle cx="16" cy="16" r="2.2" fill="#1d1820"/></g>`, 16, 16, "move"),
+  cam: cameraOf("#fff", "#cfe9ff"), camOver: cameraOf("#ff6f86", "#fff6a8") };
+let photoMode = false;
+function hover(x = px, y = py) {                          // the cursor for wherever the pointer is now, nothing held
+  if (held || panning) return;
+  const c = hit(x, y);
+  cursor(c ? "over" : "idle");
+}
+let curNow = ""; const cursor = k => { if (photoMode) k = k === "over" ? "camOver" : "cam"; if (curNow !== k) { curNow = k; cv.style.cursor = CUR[k]; } };
+cursor("idle");
+
+// ---------- votes: blober is the filter ----------
+
+const store = { get(k) { try { return localStorage.getItem("blober." + k) ?? localStorage.getItem("corral." + k) ?? ""; } catch (e) { return ""; } }, set(k, v) { try { localStorage.setItem("blober." + k, v); } catch (e) {} } };
+// learning runs in a worker, so a vote never freezes the floor; until it answers, the last model is used
+const WORKER_TAIL = `
+self.onmessage = e => {
+  const b = new Brain(); b.read(e.data.text); const out = {};
+  for (const p of PARTS) { const M = b.m(p); out[p] = { rows: M.rows.map(r => [r.s, r.y, r.w]), w: [...M.w], bias: M.bias }; }
+  self.postMessage({ id: e.data.id, out });
+};`;
+let worker = null;
+try {
+  worker = new Worker(URL.createObjectURL(new Blob([$("core").textContent + WORKER_TAIL], { type: "text/javascript" })));
+  worker.onmessage = e => brain.receive(e.data);
+  worker.onerror = () => { worker = null; brain.busy = false; brain.cache = null; };
+} catch (e) { worker = null; }
+const EMPTY = Object.fromEntries(PARTS.map(p => [p, { rows: [], w: new Map(), bias: 0 }]));
+class LiveBrain extends Brain {
+  constructor() { super(); this.ver = 0; this.stale = null; this.busy = false; this.timer = 0; }
+  add(kind, part, g) { super.add(kind, part, g); this.ver++; if (worker) this.request(); }
+  request() { if (!this.timer) this.timer = setTimeout(() => { this.timer = 0; this.send(); }, 250); }
+  send() { if (!worker || this.busy) return; this.busy = true; worker.postMessage({ id: this.ver, text: this.text() }); }
+  receive(d) {
+    this.busy = false;
+    const gs = new Map(this.events.map(e => [e.s, e.g])), M = {};
+    for (const p of PARTS) { const o = d.out[p]; M[p] = { rows: o.rows.map(([s, y, w]) => ({ g: gs.get(s) || parseGenome(s), s, y, w })), w: new Map(o.w), bias: o.bias }; }
+    this.stale = M;
+    if (d.id === this.ver) this.cache = M; else this.send();
+  }
+  m(p) {
+    if (this.cache) return this.cache[p];
+    if (worker) { if (!this.busy) this.request(); return (this.stale || EMPTY)[p]; }
+    return super.m(p);
+  }
+}
+let brain = new LiveBrain(), favs = [], gone = 0;
+const games = {};                                         // what the games keep in the .bna: "# blobslinger round N score M" (the furthest one wins)
+const gameRound = l => +((l.match(/ round (\d+)/) || [])[1] || 0);
+const LIKE = ["shape", "face", "antennas", "arms", "legs"];   // color is never learned here, so every color keeps coming
+const toBna1 = l => {                                    // votes from blober 2.0.0 → bna1 lines
+  if (/ t=[0-9a-f]{16} /.test(l)) return [l];
+  const m = l.match(/ e=(\d) m=(\d) a=/), v = l.match(/^(yes|no|meh|bad) (\w+) (.+)$/); if (!m || !v) return [];
+  let e = +m[1]; if (e === 5) return []; if (e > 5) e--;                // lentes out, eyes 6–9 → 5–8
+  const g = v[3].replace(m[0], ` e=${e} m=${m[2]} t=00${"80".repeat(7)} a=`)
+    .replace(/ f=([0-9a-f]{6})[0-9a-f]{2}/, " f=$180");                 // f3 now really sets the face size: old votes stay neutral on it
+  if (v[1] === "bad") return [`no ${v[2]} ${g}`];                       // they never saw antennas, so they teach nothing about them
+  if (v[2] === "all") return ["shape", "face", "arms", "legs", "color"].map(p => `${v[1]} ${p} ${g}`);
+  return [`${v[1]} ${v[2]} ${g}`];
+};
+function readText(text) {                                // votes, favorites ("fav …") and how many are gone ("# gone N")
+  const seen = new Set(brain.events.map(e => `${e.kind} ${e.part} ${e.s}`)), votes = [];
+  for (const raw of (text || "").split("\n")) {
+    const l = raw.trim();
+    if (l.startsWith("fav ")) { const s = l.slice(4); try { parseGenome(s); if (!favs.includes(s)) favs.push(s); } catch (e) {} continue; }
+    const k = l.match(/^# gone (\d+)/); if (k) { gone = Math.max(gone, +k[1]); continue; }
+    const gm = l.replace(/^# blobsling /, "# blobslinger ").match(/^# (blob\w+) /);   // blobsling is now called blobslinger
+    if (gm) { const g = l.replace(/^# blobsling /, "# blobslinger "); if (!games[gm[1]] || gameRound(g) >= gameRound(games[gm[1]])) games[gm[1]] = g; continue; }
+    for (const v of toBna1(l)) if (!seen.has(v)) { seen.add(v); votes.push(v); }
+  }
+  return brain.read(votes.join("\n"));
+}
+const fileText = () => `bna1\n# gone ${gone}\n` + Object.values(games).map(l => l + "\n").join("") + favs.map(s => "fav " + s).join("\n") + (favs.length ? "\n" : "") + brain.text();
+let saveT = 0;                                            // writing the whole file to storage is slow: once things calm down
+const saveNow = () => { clearTimeout(saveT); saveT = 0; store.set("all", fileText()); writeBna(); };
+const save = () => { if (!saveT) saveT = setTimeout(saveNow, 800); };
+addEventListener("pagehide", saveNow);
+document.addEventListener("visibilitychange", () => { if (document.hidden && saveT) saveNow(); });
+let trainT = 0;
+function vote(kind, c) {                                  // the brain works out which part it was
+  if (c.voted === kind) return; brain.add(kind, "blob", c.g); c.voted = kind; save();
+  if (!worker) { clearTimeout(trainT); trainT = setTimeout(() => brain.m("shape"), 1500); }   // no worker: relearn once things calm down
+}
+const polish = () => Math.min(3, Math.floor(brain.events.length / 150));
+
+// the more you clean, the more ways to go
+const WEAPONS = [
+  { id: "boom", name: "explosion", at: 0 }, { id: "crush", name: "crush", at: 3 }, { id: "bones", name: "bones", at: 6 },
+  { id: "split", name: "split", at: 10 }, { id: "fire", name: "fire", at: 14 }, { id: "pop", name: "balloon", at: 18 },
+  { id: "shatter", name: "shatter", at: 24 }, { id: "zap", name: "lightning", at: 36 },
+  { id: "dust", name: "cremation", at: 45 }];
+const unlocked = () => WEAPONS.filter(w => gone >= w.at);
+function weapon() { const u = unlocked(); return rand() < .45 ? u[u.length - 1] : u[Math.floor(rand() * u.length)]; }
+
+// ---------- creatures: pieces become small bitmaps, and only the ones on screen keep them ----------
+
+// pieces are vectors; they are turned into bitmaps at the size the camera needs, so a close zoom stays sharp
+const LEVELS = [96, 160, 256, 384, 512, 768];
+const wantRes = () => { const need = 100 * S * cam.zoom * DPR; return LEVELS.find(l => l >= need) || LEVELS[LEVELS.length - 1]; };
+function bitmap(svg, res) {
+  return new Promise(ok => {
+    const im = new Image();
+    im.onload = () => { const c = document.createElement("canvas"); c.width = c.height = res; c.getContext("2d").drawImage(im, 0, 0, res, res); ok(c); };
+    im.onerror = () => ok(null);
+    im.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg.replace("<svg ", `<svg width="${res}" height="${res}" `));
+  });
+}
+function bounds(c) {
+  try {
+    const n = c.width, d = c.getContext("2d").getImageData(0, 0, n, n).data; let t = n, b = 0, l = n, r = 0;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (d[(y * n + x) * 4 + 3] > 60) { if (y < t) t = y; if (y > b) b = y; if (x < l) l = x; if (x > r) r = x; }
+    const s = 100 / n; return { top: t * s, bottom: (b + 1) * s, left: l * s, right: (r + 1) * s };
+  } catch (e) { return { top: 10, bottom: 92, left: 12, right: 88 }; }
+}
+// Eyes with white and pupil (pupil, cyclops, googly) are drawn as whites + a pupil that can look around.
+// Every other eye style keeps its own drawing, and switches to wide eyes with pupils only when scared.
+function room(c, xs) {                                    // the biggest eye radius that stays inside the body at these eye spots
+  const a = c.A.eyes; if (!a) return 4;
+  const B = body(c.g.s), s = a.scale || 1;
+  const r = Math.min(...xs.map(x => depthAt(B, a.x + x * s, a.y) / s)) / 1.2 - .6 / s;
+  return Math.max(2.4, Math.min(r, xs.length > 1 ? Math.abs(xs[1] - xs[0]) * .45 : 99));
+}
+function faceParts(c) {
+  const f = c.g.f, z = f[0], gp = eyeGap(f, c.g.e), style = eyeDraw(c.g.e), col = PALETTE[c.g.c];
+  let whites, xs, pr, max, always = true;
+  if (style === 6) { const R = 5 + z * 4; whites = `<circle cx="0" cy="0" r="${F(R)}" fill="#fff"/>`; xs = [0]; pr = R * .56; max = R * .42; }
+  else if (style === 9) { const rx = 3 + z * 2.5, ry = rx * 1.2; whites = [-gp, gp].map(x => `<ellipse cx="${F(x)}" cy="0" rx="${F(rx)}" ry="${F(ry)}" fill="#fff"/>`).join(""); xs = [-gp, gp]; pr = rx * .5; max = rx * .45; }
+  else { const R = style === 1 ? 3.4 + z * 3.2 : Math.min(3.4 + z * 3.2, room(c, [-gp, gp]), socketR(c.g.e, f) / 1.15); whites = [-gp, gp].map(x => `<circle cx="${F(x)}" cy="0" r="${F(R)}" fill="#fff"/>`).join(""); xs = [-gp, gp]; pr = R * (style === 1 ? .56 : .46); max = R * .42; always = style === 1; }
+    const pupil = `<circle cx="0" cy="0" r="${F(pr)}" fill="${INK}"/><circle cx="${F(-pr * .32)}" cy="${F(-pr * .36)}" r="${F(pr * .3)}" fill="#fff"/>`;
+  const wide = clamp(room(c, xs) / (max / .42), 1, 1.15);   // how much the eyes may widen when scared without leaving the body
+  return { always, xs, max, wide, svg: { "eyes-white": svgDoc("-50 -50 100 100", whites), pupil: svgDoc("-50 -50 100 100", pupil),
+    ...(c.g.m ? { "mouth-o": paint(svgDoc("-50 -50 100 100", mouthSVG(2, f)), col) } : {}) } };
+}
+
+function load(c, res) {                                   // draw its pieces (again: put away off camera, or the zoom changed)
+  c.loading = true;
+  const R = c.R || (c.R = render(c.g)), img = {};         // the vectors are the same every time: built once per creature
+  c.A = R.anchors; if (c.A.mouth) c.A["mouth-o"] = c.A.mouth; const fp = c.eyes || (c.eyes = faceParts(c));
+  Promise.all(Object.entries({ ...R.pieces, ...fp.svg }).map(([id, s]) => bitmap(s, res).then(b => (img[id] = b))))
+    .then(() => (c.boxed ? null : Promise.all([bitmap(R.creature, 160), bitmap(R.pieces.skeleton, 160)])))
+    .then(full => {
+      if (full && full[0]) { c.box = bounds(full[0]); if (full[1]) c.boneBox = bounds(full[1]); c.boxed = true; }
+      c.img = img; c.res = res; c.sprite = res <= 256 ? snapshot(c) : null; c.ready = true; c.loading = false;
+    });
+}
+function unload(c) { c.img = {}; c.sprite = null; c.ready = false; }   // off camera for a while: keep who it is, drop the pictures
+
+const crits = [];
+function spawn(g, at) {
+  const c = { g, line: genome(g), fam: famOf(g.s), color: PALETTE[g.c], A: {}, img: {}, ready: false, loading: false, boxed: false, voted: "",
+    x: at.x, z: at.z, h: at.h ?? 600, vx: 0, vz: 0, vh: 0, face: rand() < .5 ? -1 : 1, mode: "air", wait: .6 + rand() * 1.5, tx: 0, tz: 0,
+    pop: 9, phase: rand() * 6, blink: 1 + rand() * 4, shut: 0, squash: 0, wiggle: 0, scared: 0, char: 0,
+    defX: 1, defY: 1, alpha: 1, clip: 0, far: 1, spin: 0, off: 0, d: null,
+    look: { x: 0, y: 0 }, lookAt: null, buddy: null, lookT: 1 + rand() * 3, glance: null, curious: rand() < .35,
+    legs: isOn("legs", g), box: { top: 10, bottom: 92, left: 12, right: 88 } };
+  load(c, wantRes());
+  crits.push(c);
+  while (crits.length > MAX) remove(crits[0]);            // the oldest, wherever it is, just leaves
+  document.body.classList.remove("start");               // the first one ends the start screen
+  return c;
+}
+
+function rain(at) {                                       // a new one falls somewhere on screen, like a drop of rain (the very first: right where you asked)
+  const sx = at ? at[0] : W * (.08 + rand() * .84), sy = at ? at[1] : H * (.22 + rand() * .7), w = toWorld(sx, sy);
+  spawn(makeOne(), { x: w.x, z: w.z, h: (sy + 140) / cam.zoom });
+}
+
+function makeOne() {
+  const t0 = tuning(brain, polish()), t = { explore: Math.max(.3, t0.explore), sigma: Math.max(.06, t0.sigma), temp: Math.max(.8, t0.temp) };
+  const near = crits.filter(c => Math.abs(c.x - cam.x) < W / cam.zoom && Math.abs(c.z - cam.z) < H / cam.zoom);
+  const used = new Set(near.map(c => c.g.c)), free = PALETTE.map((_, i) => i).filter(i => !used.has(i));
+  const novel = rand() < .2;                             // one in five is pure chance and skips the filter
+  for (let tries = 0; tries < 8; tries++) {
+    const cands = [];
+    for (let i = 0; i < (novel ? 1 : 24); i++) {
+      const g = compose(...PARTS.map(p => novel || p === "color" ? randomPart(p, rand) : genPart(brain, p, rand, t)));
+      if (free.length) g.c = free[Math.floor(rand() * free.length)];   // a color not already on screen
+      cands.push({ g, score: LIKE.reduce((s, p) => s + brain.score(p, g), 0) });
+    }
+    const g = choose(cands, 1, t.temp, rand)[0];
+    if (g && goodBlob(g)) return g;
+  }
+  for (let i = 0; i < 200; i++) { const g = compose(...PARTS.map(p => randomPart(p, rand))); if (goodBlob(g)) return g; }
+  return compose(...PARTS.map(p => randomPart(p, rand)));
+}
+
+// ---------- effects, all in world space ----------
+
+const parts = [], rings = [], bolts = [], decals = [];
+let shake = 0, flash = 0;
+const tall = c => (c.box.bottom - c.box.top) * S;
+const headOf = c => ({ x: c.x, y: c.z - c.h - tall(c) * .55, k: 1 });
+const FX = 1.4;                                            // more of every effect
+function spray(x, y, n, o) {
+  n = Math.round(n * FX); if (parts.length > 3400) n = Math.min(n, 4);
+  for (let i = 0; i < n; i++) {
+    const a = o.up ? -Math.PI / 2 + (rand() - .5) * (o.spread || 1.2) : rand() * 6.283, v = o.v * (.4 + rand() * .8);
+    parts.push({ kind: o.kind || "dot", x: x + (rand() - .5) * (o.jx || 0), y: y + (rand() - .5) * (o.jy || 0), vx: Math.cos(a) * v + (o.wind || 0), vy: Math.sin(a) * v,
+      g: o.g ?? 300, r: o.r * (.6 + rand() * .8), life: 1, fade: o.fade || 1.6, grow: o.grow || 0, floor: o.floor, sa: o.sa ?? .35, spin: (rand() - .5) * 14,
+      color: Array.isArray(o.color) ? o.color[Math.floor(rand() * o.color.length)] : o.color });
+  }
+}
+function splat(x, z, r, color, life = 7, a = .35) { const d = { x, z, r, color, life, max: life, a }; decals.push(d); if (decals.length > 400) decals.shift(); return d; }
+const BLOOD = ["#c81e2a", "#a3121d", "#e0303a"];
+const GORE = 2.6;                                          // how exaggerated: more drops, faster, bigger
+function bleed(x, y, z, n, v = 300) { spray(x, y, Math.round(n * GORE), { kind: "drop", v: v * 1.25, r: 4.4, color: BLOOD, g: 1100, fade: .4, floor: z, sa: .75, up: true, spread: 2.9 }); }
+function remove(c) { c.removed = true; const i = crits.indexOf(c); if (i >= 0) crits.splice(i, 1); if (held === c) held = null; }
+function ash(c) {
+  const h = headOf(c); blast(c, h.x, h.y, .18, ["#3a3236", "#5b5257", "#ff8a3d", "#ffd23f"]);
+  spray(h.x, h.y + 10, 26, { v: 70, r: 4, color: ["#3a3236", "#5b5257", "#2a2427"], g: 160, jx: 40, jy: 30 });
+  spray(h.x, h.y, 10, { kind: "smoke", up: true, v: 40, r: 9, color: "#8d8790", g: -30, fade: .8, grow: 22, jx: 30 });
+  splat(c.x, c.z, 26, "#2a2427", 6);
+  remove(c);
+}
+function scare(x, z, radius, push, except) {             // everybody near jumps, runs away, or both
+  for (const o of crits) {
+    if (o === except || o.d || o.mode === "held") continue;
+    const dx = o.x - x, dz = (o.z - z) * 1.4, d = Math.hypot(dx, dz) || .01;
+    if (d > radius) continue;
+    o.lookAt = { x, y: z - 40, t: 2.5 + rand() };
+    if (d < radius * .45 && push) {                      // close: blown away
+      const f = 1 - d / (radius * .45);
+      o.mode = "air"; o.vh = 380 + 760 * f * push; o.vx = dx / d * 800 * f * push; o.vz = dz / d * 260 * f * push; o.scared = 2.5;
+    } else {                                             // farther: a jump and then run
+      o.scared = 2.2 + rand();
+      if (o.h === 0 && o.mode !== "air") { o.mode = "air"; o.vh = 330; }
+      o.tx = o.x + dx / d * 320; o.tz = o.z + dz / d * 200; o.flee = true;
+    }
+  }
+}
+
+// ---------- the ways to go ----------
+
+// the big explosion's look, at any strength: a fireball, a ring on the floor, colored bits, smoke, a shake
+function blast(c, x, y, power, colors) {
+  const p = power, q = Math.sqrt(p);
+  rings.push({ x: c.x, y: c.z, r: 10, max: 280 * q, life: 1, flat: true });
+  rings.push({ x, y, r: 5, max: 150 * q, life: 1, fill: true });
+  spray(x, y, Math.round(70 * p), { v: 520 * q, r: 5, color: colors || [c.color, dark(c.color), "#ffd23f", "#ff8a3d", "#fff2a8"] });
+  spray(x, y, Math.round(22 * p), { kind: "smoke", up: true, spread: 3, v: 90 * q, r: 14 * q, color: "#9a949c", g: -40, fade: .6, grow: 40 * q });
+  shake = Math.max(shake, 22 * p);
+}
+
+// everything that comes undone ends the same way: the flesh goes, the bones stay a moment, then dust
+function toBones(c, charred) {
+  c.d = { type: "bones", t: 0, charred }; c.mode = "dying"; c.bone = c.img.skeleton; c.boneRot = 0; c.boneClip = 0; c.clip = 0; c.flesh = true; c.boneFall = 0;
+  if (c.bone) c.boneDrop = Math.max(0, c.box.bottom - (c.boneBox || bounds(c.bone)).bottom);   // measured at load, not mid-death   // the bone sits inside: once the flesh is gone, it drops to the floor
+  c.lean = (rand() < .5 ? -1 : 1) * (.12 + rand() * .3);
+  if (!c.img["bone-body"]) ash(c);
+}
+const BONES = ["#efe7d4", "#dccfb2", "#cbbd9c"];
+function boneBits(c, n, o) {                              // the skeleton, in a few pieces, flying with the rest
+  if (!c.img.skeleton) return;
+  const polys = grid(c, 2, 3).sort(() => rand() - .5).slice(0, n);
+  shardsFrom(c, polys, c.img.skeleton, { ...o, bleed: false });
+}
+
+function die(c, type) {                                  // it starts right where it stands: on the floor, no floating
+  c.d = { type, t: 0 }; c.mode = "dying"; c.vx = c.vz = c.vh = 0; c.h = 0; c.squash = 0; c.pop = 9; c.scared = 9;
+  if (type === "fire" || type === "zap" || type === "dust") c.patches = patches(c);
+}
+function patches(c) {                                     // burn marks: dark scorches and raw red spots, they spread as it burns
+  const b = c.box, out = [];
+  for (let i = 0; i < 12; i++) { const red = rand() < .35; out.push({ x: b.left + rand() * (b.right - b.left), y: b.top + rand() * (b.bottom - b.top), r: 5 + rand() * 12, d: rand(),
+    col: red ? (rand() < .5 ? "#b3261e" : "#e2571e") : (rand() < .5 ? "#1f1416" : "#3a2422") }); }
+  return out;
+}
+
+
+// ---------- pieces: the creature as it looks now, cut into polygons that fly on their own ----------
+
+const shards = [];
+function snapshot(c) {
+  const n = c.res || 160, out = document.createElement("canvas"); out.width = out.height = n;
+  const g = out.getContext("2d"); g.scale(n / 100, n / 100);
+  for (const id of ["antenna-1", "antenna-2", "leg-left", "leg-right", "arm-left", "arm-right"]) piece(g, c, id);
+  if (c.img.body) g.drawImage(c.img.body, 0, 0, 100, 100);
+  for (const id of ["blush", "eyes", "mouth"]) piece(g, c, id);
+  return out;
+}
+function cut(c, polys, o) {
+  shardsFrom(c, polys, snapshot(c), o);
+  if (o.bones) boneBits(c, o.bones, { v: o.v * 1.1, vz: o.vz, up: o.up * 1.1, spin: o.spin || 16, life: o.life });
+  remove(c);
+}
+function shardsFrom(c, polys, snap, o) {
+  const b = c.box, mid = (b.top + b.bottom) / 2;
+  for (const poly of polys) {
+    const cx = poly.reduce((s, p) => s + p[0], 0) / poly.length, cy = poly.reduce((s, p) => s + p[1], 0) / poly.length;
+    const dx = (cx - 50) * c.face, dy = mid - cy, l = Math.hypot(dx, dy) || 1;
+    shards.push({ ...cutOut(snap, poly), cx, cy, face: c.face, x: c.x + (cx - 50) * S * c.face, z: c.z + (rand() - .5) * 12, h: (b.bottom - cy) * S,
+      vx: dx / l * o.v * (.6 + rand() * .8) + (rand() - .5) * 40, vz: (rand() - .5) * o.vz, vh: o.up * (.5 + rand() * .8) + dy / l * o.v * .4,
+      rot: 0, vr: o.spin ? (rand() - .5) * o.spin : Math.sign(dx || 1) * (1.6 + rand() * .7), life: o.life, max: o.life, bleed: o.bleed, landed: false });
+  }
+}
+function cutOut(snap, poly) {                             // the piece clipped once into its own small picture, so flying needs no clip
+  const n = snap.width / 100, xs = poly.map(p => p[0]), ys = poly.map(p => p[1]);
+  const x0 = Math.floor(Math.min(...xs)), y0 = Math.floor(Math.min(...ys)), w = Math.ceil(Math.max(...xs)) - x0 + 1, h = Math.ceil(Math.max(...ys)) - y0 + 1;
+  const img = document.createElement("canvas"); img.width = Math.max(1, Math.ceil(w * n)); img.height = Math.max(1, Math.ceil(h * n));
+  const g = img.getContext("2d"); g.scale(n, n); g.translate(-x0, -y0);
+  g.beginPath(); poly.forEach(([x, y], j) => (j ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.clip();
+  g.drawImage(snap, 0, 0, 100, 100);
+  return { img, ox: x0, oy: y0, iw: w, ih: h };
+}
+function grid(c, cols, rows) {                            // the box cut in jittered cells
+  const b = c.box, x0 = b.left - 3, x1 = b.right + 3, y0 = b.top - 3, y1 = b.bottom + 3, P = [];
+  for (let j = 0; j <= rows; j++) { P.push([]); for (let i = 0; i <= cols; i++) {
+    const edge = i === 0 || j === 0 || i === cols || j === rows, jx = edge ? 0 : (rand() - .5) * (x1 - x0) / cols * .7, jy = edge ? 0 : (rand() - .5) * (y1 - y0) / rows * .7;
+    P[j].push([x0 + (x1 - x0) * i / cols + jx, y0 + (y1 - y0) * j / rows + jy]); } }
+  const out = [];
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) out.push([P[j][i], P[j][i + 1], P[j + 1][i + 1], P[j + 1][i]]);
+  return out;
+}
+function halves(c) {                                      // a jagged cut down the middle
+  const b = c.box, line = [];
+  for (let k = 0; k <= 6; k++) line.push([50 + (rand() - .5) * 7, b.top - 4 + (b.bottom - b.top + 8) * k / 6]);
+  return { line, polys: [[[b.left - 6, b.top - 4], ...line, [b.left - 6, b.bottom + 4]], [[b.right + 6, b.top - 4], ...line, [b.right + 6, b.bottom + 4]]] };
+}
+// ---------- noodles: the insides, spilled. Soft ropes (verlet) that flop, land and wriggle ----------
+
+const noodles = [], GUTS = ["#c94a5a", "#e06a78", "#9e2c3c", "#ec7d87"];
+function noodle(x, y, floor, vx, vy, len, w) {
+  const n = 10, seg = len / (n - 1), pts = []; let a = rand() * 6.283;
+  let f = 0;                                                 // each point lands at its own depth, so on the floor it curls instead of lying in a line
+  for (let i = 0; i < n; i++) { f = clamp(f + (rand() - .5) * 9, -12, 12); pts.push({ x, y, px: x - vx / 60, py: y - vy / 60, f: floor + f }); x += Math.cos(a) * seg; y += Math.sin(a) * seg; a += (rand() - .5) * 1.6; }
+  noodles.push({ pts, seg, floor, w, life: 3.2 + rand() * 1.2, max: 4.4, wr: rand() * 6, drip: rand() < .6 });
+  if (noodles.length > 160) noodles.shift();
+}
+function spill(c, n, o) {                                  // noodles out of a creature: only when it breaks open (blast, burst, cut, crush)
+  const b = c.box;
+  for (let i = 0; i < n; i++) {
+    const cx = o.at ?? b.left + (b.right - b.left) * (.25 + rand() * .5), cy = b.top + (b.bottom - b.top) * (.3 + rand() * .55);
+    const x = c.x + (cx - 50) * S * c.face, y = c.z - c.h - (b.bottom - cy) * S * (o.flat ? .2 : 1);
+    const a = o.angle !== undefined ? o.angle() : -Math.PI / 2 + (rand() - .5) * (o.spread ?? 2.4), v = o.v * (.5 + rand() * .7);
+    noodle(x, y, c.z + (rand() - .5) * 16, Math.cos(a) * v, Math.sin(a) * v, 16 + rand() * 26, 3 + rand() * 1.6);
+  }
+  const h = headOf(c);                                     // and lumps: bits of the insides
+  spray(h.x, h.y, Math.round(n * 3), { kind: "chunk", v: o.v * .9, r: 2.6, color: GUTS, g: 1000, fade: .45, floor: c.z, sa: .9, up: o.spread !== undefined && o.spread < 6, spread: o.spread ?? 2.4 });
+}
+function stepNoodles(dt) {
+  const steps = Math.max(1, Math.round(dt * 60)), g = G / 3600;
+  let j = 0;                                                 // the ones still alive are packed in place: no splice per removal
+  for (let i = 0; i < noodles.length; i++) {
+    const N = noodles[i]; N.life -= dt; if (N.life <= 0) continue;
+    N.wr += dt * 9;
+    for (let s = 0; s < steps; s++) {
+      N.pts.forEach((p, k) => {
+        if (p.stuck) return;                                    // stuck to the floor: it stays
+        const vx = (p.x - p.px) * .985, vy = (p.y - p.py) * .985; p.px = p.x; p.py = p.y;
+        const wig = Math.sin(N.wr + k * .9) * .12;                // floppy in the air
+        p.x += vx + wig; p.y += vy + g;
+      });
+      for (let it = 0; it < 2; it++) for (let k = 1; k < N.pts.length; k++) {   // stretchy: it pulls, but gives
+        const a = N.pts[k - 1], b = N.pts[k], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1, f = (d - N.seg) / d * .3;
+        if (d < N.seg * 1.1) continue;
+        const fa = a.stuck ? 0 : b.stuck ? 2 : 1, fb = b.stuck ? 0 : a.stuck ? 2 : 1;
+        a.x += dx * f * fa; a.y += dy * f * fa; b.x -= dx * f * fb; b.y -= dy * f * fb;
+      }
+      for (const p of N.pts) if (!p.stuck && p.y > p.f) { p.y = p.f; p.px = p.x; p.py = p.y; p.stuck = true; }   // it hits the floor and sticks
+    }
+    const stuck = N.pts.filter(p => p.stuck).length;
+    if (stuck >= N.pts.length * .75 || N.life < N.max - 2.4) {  // landed: it is not a tube anymore, it is a smear on the floor
+      decals.push({ goo: N.pts.map(p => [p.x, p.y]), w: N.w * 1.7, life: 9, max: 9, a: .95, color: "#d9606e" });
+      if (decals.length > 400) decals.shift();
+      continue;
+    }
+    if (N.drip && rand() < dt * 2.5) { const p = N.pts[Math.floor(rand() * N.pts.length)]; bleed(p.x, p.y, N.floor, 1, 60); }
+    noodles[j++] = N;
+  }
+  noodles.length = j;
+}
+function drawNoodles() {
+  for (const N of noodles) {
+    const k = Math.min(1, N.life / .6), P = N.pts;
+    const path = () => { ctx.beginPath(); ctx.moveTo(P[0].x, P[0].y); for (let i = 1; i < P.length - 1; i++) ctx.quadraticCurveTo(P[i].x, P[i].y, (P[i].x + P[i + 1].x) / 2, (P[i].y + P[i + 1].y) / 2); ctx.lineTo(P[P.length - 1].x, P[P.length - 1].y); };
+    ctx.save(); ctx.lineCap = ctx.lineJoin = "round";
+    ctx.globalAlpha = (night() ? .35 : .12) * k; ctx.strokeStyle = "#000"; ctx.lineWidth = N.w * .9 * k;
+    ctx.beginPath(); ctx.moveTo(P[0].x, N.floor); ctx.lineTo(P[P.length - 1].x, N.floor); ctx.stroke(); ctx.globalAlpha = 1;
+    path(); ctx.strokeStyle = "#a8323f"; ctx.lineWidth = N.w * 1.45 * k; ctx.stroke();
+    path(); ctx.strokeStyle = "#ec7d87"; ctx.lineWidth = N.w * k; ctx.stroke();
+    ctx.translate(-N.w * .18, -N.w * .18); path(); ctx.strokeStyle = "#f8b6bc"; ctx.lineWidth = N.w * .28 * k; ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// the inside of a cut: the flesh shows dark meat, noodles, and a strip of bone along the cut
+function cutSnapshot(c, line) {
+  const out = snapshot(c), g = out.getContext("2d");
+  const band = w => { g.beginPath(); line.forEach(([x, y], i) => (i ? g.lineTo(x - w, y) : g.moveTo(x - w, y))); for (let i = line.length - 1; i >= 0; i--) g.lineTo(line[i][0] + w, line[i][1]); g.closePath(); };
+  g.save(); band(6); g.clip(); g.globalCompositeOperation = "source-atop"; g.fillStyle = "#7a1a28"; g.fillRect(0, 0, 100, 100);
+  if (c.img.insides) g.drawImage(c.img.insides, 0, 0, 100, 100); g.restore();
+  if (c.img.skeleton) { g.save(); band(2); g.clip(); g.globalCompositeOperation = "source-atop"; g.drawImage(c.img.skeleton, 0, 0, 100, 100); g.restore(); }
+  return out;
+}
+
+function stepShards(dt) {
+  let j = 0;
+  for (let i = 0; i < shards.length; i++) {
+    const s = shards[i]; s.life -= dt; if (s.life <= 0) continue; shards[j++] = s;
+    s.vh -= G * dt; s.h += s.vh * dt; s.x += s.vx * dt; s.z += s.vz * dt; s.rot += s.vr * dt;
+    if (s.h <= 0) {
+      s.h = 0;
+      if (!s.landed && s.bleed) { splat(s.x, s.z, 14 + rand() * 14, BLOOD[rand() < .5 ? 0 : 1], 9, .65); bleed(s.x, s.z - 2, s.z, 2, 160); }
+      s.landed = true;
+      if (s.vh < -220) { s.vh *= -.3; s.vx *= .55; s.vz *= .55; s.vr *= .5; }
+      else { s.vh = 0; s.vx *= Math.pow(.02, dt); s.vz *= Math.pow(.02, dt); s.vr *= Math.pow(.004, dt); }
+    }
+    if (s.bleed && rand() < dt * (s.landed ? 5 : 22)) bleed(s.x, s.z - s.h, s.z, 1, 140);
+  }
+  shards.length = j;
+}
+function drawShard(s) {
+  const k = Math.min(1, s.life / .5);                     // at the end it shrinks into the floor, it doesn't fade
+  ctx.globalAlpha = (night() ? .4 : .14) * k; ctx.fillStyle = "#000";
+  ctx.beginPath(); ctx.ellipse(s.x, s.z, 14 / (1 + s.h / 300), 4 / (1 + s.h / 300), 0, 0, 6.283); ctx.fill(); ctx.globalAlpha = 1;
+  ctx.save(); ctx.translate(s.x, s.z - s.h); ctx.rotate(s.rot); ctx.scale(S * s.face * k, S * k);
+  ctx.drawImage(s.img, s.ox - s.cx, s.oy - s.cy, s.iw, s.ih); ctx.restore();
+}
+const DEATHS = {
+  boom(c) {
+    const h = headOf(c); blast(c, h.x, h.y, 1);             // the big one
+    bleed(h.x, h.y, c.z, 18, 520); splat(c.x, c.z, 50, "#2a2427", 6, .5); splat(c.x, c.z, 34, BLOOD[1], 9, .6);
+    shake = 22; scare(c.x, c.z, 560, 1.2, c);
+    spray(h.x, h.y, 16, { kind: "chunk", v: 600, r: 3, color: BONES, g: 1000, fade: .45, floor: c.z, sa: .85 });
+    spill(c, 12, { v: 760, spread: 6.28 });
+    cut(c, grid(c, 3, 3), { v: 760, vz: 380, up: 900, spin: 22, life: 3.4, bleed: true, bones: 4 });
+  },
+  fire(c) { die(c, "fire"); scare(c.x, c.z, 420, 0, c); },
+  zap(c) {
+    const h = headOf(c), top = cam.z - H / 2 / cam.zoom - 30, pts = [[h.x + (rand() - .5) * 60, top]];
+    while (pts[pts.length - 1][1] < h.y) { const [x, y] = pts[pts.length - 1]; pts.push([x + (rand() - .5) * 46, Math.min(h.y, y + 24 + rand() * 30)]); }
+    pts[pts.length - 1][0] = h.x;
+    bolts.push({ pts, life: 1 }); flash = 1; shake = 10;
+    die(c, "zap"); c.char = 1; blast(c, h.x, h.y, .45, ["#fff6a8", "#ffe14d", "#9fd8ff", "#ffffff", dark(c.color)]);
+    spray(h.x, h.y, 40, { kind: "spark", v: 420, r: 2.4, color: ["#fff6a8", "#ffe14d", "#9fd8ff"], g: 200, fade: 2.4 });
+    scare(c.x, c.z, 460, .45, c);
+  },
+  crush(c) {                                              // flattened in one blow, twitches, gone
+    die(c, "crush"); c.defX = 1.75; c.defY = .16; blast(c, c.x, c.z - 8, .35, [c.color, dark(c.color), BLOOD[0], "#d9d2c6"]);
+    bleed(c.x, c.z - 6, c.z, 16, 360); splat(c.x, c.z, 52, BLOOD[1], 9, .65); splat(c.x + (rand() - .5) * 40, c.z + 6, 26, BLOOD[0], 9, .6);
+    spray(c.x, c.z - 6, 16, { kind: "chunk", v: 260, r: 3, color: [c.color, dark(c.color)], g: 1000, fade: .5, floor: c.z, sa: .9, up: true, spread: 2.6 });
+    rings.push({ x: c.x, y: c.z, r: 10, max: 160, life: 1, flat: true });
+    spray(c.x, c.z - 4, 16, { kind: "smoke", up: true, spread: 2.8, v: 120, r: 6, color: "#b9b3bb", g: -10, fade: 1.4, grow: 14 });
+    spill(c, 8, { v: 420, flat: true, angle: () => (rand() < .5 ? -.2 - rand() * .3 : Math.PI + .2 + rand() * .3) });
+    boneBits(c, 3, { v: 260, vz: 140, up: 220, spin: 10, life: 4 });
+    shake = 12; scare(c.x, c.z, 380, 0, c);
+  },
+  bones(c) { die(c, "bones"); toBones(c, false); scare(c.x, c.z, 320, 0, c); },
+  split(c) {                                              // in two, down the middle; the halves fall apart
+    const h = headOf(c); blast(c, h.x, h.y, .3, [c.color, dark(c.color), BLOOD[0], "#ffd23f"]); bleed(h.x, h.y, c.z, 30, 480); splat(c.x, c.z, 46, BLOOD[0], 10, .7);
+    const hv = halves(c);
+    shardsFrom(c, hv.polys, cutSnapshot(c, hv.line), { v: 170, vz: 40, up: 220, life: 4.2, bleed: true });
+    spill(c, 7, { v: 160, spread: 1.6, at: 50 }); boneBits(c, 2, { v: 160, vz: 60, up: 260, spin: 8, life: 4 });
+    remove(c); shake = 10; scare(c.x, c.z, 400, 0, c);
+  },
+  shatter(c) {                                            // in pieces, flying everywhere
+    const h = headOf(c); blast(c, h.x, h.y, .65); bleed(h.x, h.y, c.z, 34, 620); splat(c.x, c.z, 40, BLOOD[1], 9, .6);
+    spray(h.x, h.y, 30, { kind: "chunk", v: 520, r: 3.2, color: [c.color, dark(c.color), BLOOD[0], ...BONES], g: 1000, fade: .45, floor: c.z, sa: .9 });
+    spill(c, 9, { v: 640, spread: 6.28 });
+    cut(c, grid(c, 4, 5), { v: 640, vz: 380, up: 820, spin: 20, life: 3.6, bleed: true, bones: 4 }); shake = 14; scare(c.x, c.z, 500, .7, c);
+  },
+  pop(c) { die(c, "pop"); scare(c.x, c.z, 320, 0, c); },
+  dust(c) { die(c, "dust"); scare(c.x, c.z, 320, 0, c); },
+};
+function kill(c) {
+  if (c.d) return;
+  vote("no", c);
+  const before = unlocked().length; gone++; save();
+  notice(c.x, c.z - 40, 1200, c);                         // from far away, they turn to see
+  DEATHS[weapon().id](c);
+  const now = unlocked(); if (now.length > before) toast(`Unlocked: ${now[now.length - 1].name}.`);
+}
+function love(c) {                                        // double click: off it goes, happy — "more of this"
+  if (c.removed || c.d) return;
+  const h = headOf(c), way = Math.floor(rand() * 3);
+  if (way === 0) {                                        // hearts
+    spray(h.x, h.y, 22, { kind: "heart", up: true, spread: 2.6, v: 190, r: 9, color: ["#ff6f86", "#ff8fa3", "#ff4d73"], g: -40, fade: .8 });
+    rings.push({ x: h.x, y: h.y, r: 4, max: 110, life: 1, soft: "#ff6f86" });
+  } else if (way === 1) {                                 // stars
+    spray(h.x, h.y, 26, { kind: "star", v: 300, r: 7, color: ["#ffd23f", "#ffe98a", "#fff", "#ffb02e"], g: 120, fade: 1 });
+    spray(h.x, h.y, 18, { kind: "spark", v: 380, r: 2.4, color: ["#fff6a8", "#ffffff"], g: 80, fade: 1.8 });
+    rings.push({ x: h.x, y: h.y, r: 4, max: 130, life: 1, soft: "#ffd23f" });
+  } else {                                                // confetti
+    spray(h.x, h.y, 60, { kind: "confetti", up: true, spread: 2.2, v: 520, r: 4, color: ["#ff6f86", "#ffd23f", "#5cc96b", "#7ec8f0", "#a77be0", "#ff9a2e"], g: 260, fade: .55 });
+  }
+  spray(h.x, h.y, 12, { v: 90, r: 5, color: c.color, g: -20, fade: 1.8 });
+  vote("yes", c); if (!favs.includes(c.line)) { favs.push(c.line); save(); }
+  notice(c.x, c.z - 40, 420, c);
+  remove(c);
+}
+function caress(c) { c.pop = 0; c.scared = 0; }          // just a pop in place
+function fright(c) {                                      // one right click: a fright, and the ones near flinch too
+  c.lookAt = { x: toWorld(px, py).x, y: toWorld(px, py).z, t: 2 };
+  c.scared = 3; c.mode = "air"; c.vh = 510; c.flee = true;
+  c.tx = c.x + (rand() * 2 - 1) * 400; c.tz = c.z + (rand() * 2 - 1) * 250;
+  scare(c.x, c.z, 250, 0, c);
+}
+
+// ---------- where they look ----------
+// an event they noticed > the cursor (the curious ones, when it is near) > another creature > a glance > straight ahead
+
+let cursorIn = false;
+function notice(x, y, radius, except) {                  // something happened over there: everybody near turns to see
+  for (const o of crits) { if (o === except || o.d) continue; const d = Math.hypot(o.x - x, o.z - y); if (d < radius) o.lookAt = { x, y, t: 1.6 + rand() * 1.6 }; }
+}
+function gaze(c, dt) {
+  const ex = c.x, ey = c.z - c.h - tall(c) * .62;
+  let tx = null, ty = null;
+  c.lookT -= dt; if (c.lookAt && (c.lookAt.t -= dt) <= 0) c.lookAt = null;
+  if (c.lookAt) { tx = c.lookAt.x; ty = c.lookAt.y; }
+  else if (c.mode === "held" || c.d) { const a = performance.now() / 160 + c.phase; c.look.x = Math.cos(a) * .9; c.look.y = Math.sin(a * 1.3) * .8; return; }
+  else if (c.curious && cursorIn) {
+    const w = toWorld(px, py); if (Math.hypot(w.x - ex, w.z - ey) < 480) { tx = w.x; ty = w.z; if (c.mode === "rest" && Math.abs(w.x - c.x) > 30) c.face = w.x < c.x ? -1 : 1; }
+  }
+  if (tx === null) {
+    if (c.lookT <= 0) {                                   // every few seconds: someone to look at, a glance, or nothing
+      c.lookT = 2 + rand() * 3; c.buddy = null; c.glance = null; const r = rand();
+      if (r < .45) {
+        let best = null, bd = 380;
+        for (const o of crits) { if (o === c || o.d) continue; const d = Math.hypot(o.x - c.x, o.z - c.z); if (d < bd) { bd = d; best = o; } }
+        if (best) { c.buddy = best; if (rand() < .5 && !best.lookAt) { best.buddy = c; best.lookT = c.lookT; } }
+      } else if (r < .7) c.glance = { x: (rand() - .5) * 2, y: (rand() - .5) * 1.2 };
+    }
+    if (c.buddy && !c.buddy.removed) { tx = c.buddy.x; ty = c.buddy.z - tall(c.buddy) * .6; }
+  }
+  let gx = 0, gy = 0;
+  if (tx !== null) { const dx = tx - ex, dy = ty - ey, l = Math.hypot(dx, dy) || 1, k = Math.min(1, l / 110); gx = dx / l * k; gy = dy / l * k; }
+  else if (c.glance) { gx = c.glance.x; gy = c.glance.y; }
+  const s = Math.min(1, dt * (c.scared ? 14 : 7)); c.look.x += (clamp(gx, -1, 1) - c.look.x) * s; c.look.y += (clamp(gy, -1, 1) - c.look.y) * s;
+}
+
+// ---------- life ----------
+
+function walkTo(c, dt, speed) {
+  const dx = c.tx - c.x, dz = c.tz - c.z, d = Math.hypot(dx, dz);
+  if (Math.abs(dx) > 1) c.face = dx < 0 ? -1 : 1;
+  if (d < 4) return true;
+  const step = Math.min(d, speed * dt); c.x += dx / d * step; c.z += dz / d * step * .7;
+  return false;
+}
+function dying(c, dt) {
+  const d = c.d; d.t += dt; const t = d.t;
+  switch (d.type) {
+    case "fire": {
+      c.char = Math.min(.9, c.char + dt * .45); c.phase += dt * 22; c.wiggle += dt * 14;
+      if (c.h > 0 || c.vh > 0) { c.vh -= G * dt; c.h = Math.max(0, c.h + c.vh * dt); if (!c.h) c.vh = 0; }
+      c.wait -= dt; if (c.wait <= 0) { c.wait = .25 + rand() * .3; c.tx = c.x + (rand() * 2 - 1) * 300; c.tz = c.z + (rand() * 2 - 1) * 180; }
+      walkTo(c, dt, 420);
+      if (rand() < dt * 110) { const h = headOf(c); spray(h.x, h.y - 6, 1, { kind: "flame", up: true, spread: .8, v: 110, r: 13, color: ["#ffd23f", "#ff9a2e", "#ff5a2a"], g: -60, fade: 1.8, jx: 34, jy: 26 }); }
+      if (rand() < dt * 8) { const h = headOf(c); spray(h.x, h.y - 20, 1, { kind: "smoke", up: true, v: 40, r: 8, color: "#8d8790", g: -30, fade: .7, grow: 26 }); }
+      if (t > 2.2) toBones(c, true); break;
+    }
+    case "zap": c.wiggle += dt * 40; if (t > .7) toBones(c, true); break;
+    case "crush":                                         // twitching on the floor, then fades
+      c.wiggle += dt * (t < 1.2 ? 30 + rand() * 30 : 0);
+      if (t > 1.3) c.alpha = Math.max(0, 1 - (t - 1.3) / .5);
+      if (t > 1.8) { splat(c.x, c.z, 30, c.color, 4); remove(c); } break;
+    case "bones": {                                       // the flesh slides off, the bone wobbles, then it crumbles fast
+      if (t < .8) {
+        c.clip = Math.min(1, (t / .8) ** 1.4);
+        const y = c.z - tall(c) * (1 - c.clip), wd = (c.box.right - c.box.left) * S * .5;
+        if (d.charred) {
+          if (rand() < dt * 110) spray(c.x + (rand() - .5) * 2 * wd, y, 3, { kind: "chunk", v: 40, r: 2.6 + rand() * 2, color: ["#1f1416", "#2e2124", "#3e2c2c", "#7a2a1e"], g: 900, fade: .5, floor: c.z + (rand() - .5) * 8, sa: .85, wind: 20 });
+          if (!d.pud) d.pud = splat(c.x, c.z, 4, "#1f1416", 99, .8);
+        } else {
+          if (rand() < dt * 60) spray(c.x + (rand() - .5) * 2 * wd, y, 1, { kind: "drop", v: 40, r: 4.5, color: [c.color, dark(c.color)], g: 900, fade: .5, floor: c.z + (rand() - .5) * 10, sa: .95 });
+          if (!d.pud) d.pud = splat(c.x, c.z, 4, c.color, 99, .95);   // melting opens nothing: no insides here
+        }
+        d.pud.r = (c.box.right - c.box.left) * S * (.15 + .55 * c.clip);
+      } else {
+        c.flesh = false; if (d.pud && d.pud.life > 50) d.pud.life = d.pud.max = 6;
+        c.wiggle += dt * 6; const u = t - .8; c.boneFall = c.boneDrop * Math.min(1, u * u * 40); c.boneRot = c.lean * (1 - Math.exp(-u * 4)) + Math.sin(u * 13) * .22 * Math.exp(-u * 2.6);
+        if (t > 1.9) {
+          c.boneClip = Math.min(1, (t - 1.9) / .3);
+          const y = c.z - tall(c) * (1 - c.boneClip), wd = (c.box.right - c.box.left) * S * .5;
+          spray(c.x + (rand() - .5) * 2 * wd, y, 4, { kind: "chunk", v: 60, r: 2.4 + rand() * 2, color: BONES, g: 900, fade: .55, floor: c.z + (rand() - .5) * 10, sa: .8 });
+        }
+        if (t > 2.2) { spray(c.x, c.z - 20, 10, { kind: "smoke", up: true, v: 50, r: 9, color: "#d9d2c6", g: -30, fade: .9, grow: 18, jx: 40 }); splat(c.x, c.z, 22, "#d9cfb8", 6, .7); remove(c); }
+      }
+      break;
+    }
+    case "pop": {                                         // swells up, trembling, until it bursts into drops
+      const k = Math.min(1, t / .55); c.defX = c.defY = 1 + k * k * 1.15; c.wiggle += dt * (30 + 120 * k);
+      if (t > .55) {
+        const h = headOf(c); blast(c, h.x, h.y, .55, [c.color, dark(c.color), "#fff", c.color]);
+        spray(h.x, h.y, 110, { kind: "drop", v: 700, r: 5.5, color: [c.color, dark(c.color, .85), c.color, BLOOD[0]], g: 1100, fade: .4, floor: c.z, sa: .7 });
+        spray(h.x, h.y, 24, { kind: "chunk", v: 600, r: 3.4, color: [c.color, dark(c.color), ...BONES], g: 1000, fade: .45, floor: c.z, sa: .9 });
+        boneBits(c, 3, { v: 520, vz: 300, up: 700, spin: 18, life: 3.2 }); spill(c, 8, { v: 680, spread: 6.28 });
+        bleed(h.x, h.y, c.z, 14, 560);
+        rings.push({ x: h.x, y: h.y, r: 10, max: 230, life: 1, soft: c.color }); rings.push({ x: c.x, y: c.z, r: 10, max: 200, life: 1, flat: true });
+        splat(c.x, c.z, 60, c.color, 8, .6); splat(c.x, c.z, 30, BLOOD[1], 9, .6); shake = 16; remove(c); scare(c.x, c.z, 460, .9, c);
+      } break;
+    }
+    case "dust": {                                        // chars black, then the burnt flesh crumbles off the bones
+      c.char = Math.min(1, t / .4);
+      if (t > .45) toBones(c, true);
+      break;
+    }
+  }
+}
+
+function think(c, dt) {
+  gaze(c, dt);
+  c.pop += dt; c.blink -= dt; if (c.blink < 0) { c.shut = .14; c.blink = 2 + rand() * 4; }
+  c.shut = Math.max(0, c.shut - dt); c.squash *= Math.pow(.002, dt); c.scared = Math.max(0, c.scared - dt);
+  if (c.d) return dying(c, dt);
+  if (c.mode === "held") { c.wiggle += dt * 14; return; }
+  if (c.mode === "air") {
+    c.vh -= G * dt; c.h += c.vh * dt; c.x += c.vx * dt; c.z += c.vz * dt;
+    if (c.h <= 0) {
+      c.h = 0;
+      if (c.vh < -330) { c.squash = Math.min(.32, -c.vh * .0003); c.vh *= -.38; c.vx *= .6; c.vz *= .6; }
+      else { c.squash = Math.max(c.squash, .12); c.vh = c.vx = c.vz = 0; c.mode = c.flee ? "walk" : "rest"; c.wait = .5 + rand() * 1.5; }
+    }
+    return;
+  }
+  if (c.mode === "rest") {
+    c.wait -= dt;
+    if (c.wait < 0) { c.mode = "walk"; c.flee = false; c.tx = c.x + (rand() * 2 - 1) * 260; c.tz = c.z + (rand() * 2 - 1) * 160; }
+    return;
+  }
+  const fast = c.scared > 0 ? 2.6 : 1;
+  if (c.legs) c.phase += dt * 9 * fast;
+  else { const before = Math.sin(c.phase); c.phase += dt * 6.5 * fast; c.h = Math.abs(Math.sin(c.phase)) * 24; if (Math.sign(Math.sin(c.phase)) !== Math.sign(before)) c.squash = .18; }
+  if (walkTo(c, dt, (c.legs ? 90 : 110) * fast)) { c.mode = "rest"; c.flee = false; c.wait = 1 + rand() * 3; c.h = 0; }
+}
+
+// ---------- drawing ----------
+
+function piece(g, c, id, rotate = 0, sx = 1, sy = 1) {
+  const a = c.A[id.startsWith("bone-") ? id.slice(5) : id], im = c.img[id]; if (!a || !im) return;
+  g.save(); g.translate(a.x, a.y); if (rotate) g.rotate(rotate); const s = a.scale || 1; g.scale(s * sx, s * sy);
+  g.drawImage(im, -50, -50, 100, 100); g.restore();
+}
+function drawCrit(c, t) {
+  const w = (c.box.right - c.box.left) * S * c.far * c.defX, air = c.h / 300;
+  ctx.globalAlpha = (night() ? .45 : .16) * c.alpha / (1 + air * 1.5); ctx.fillStyle = "#000";
+  ctx.beginPath(); ctx.ellipse(c.x, c.z, w * .42 / (1 + air * .4), w * .1 / (1 + air * .4), 0, 0, 6.283); ctx.fill(); ctx.globalAlpha = 1;
+  if (!c.ready) return;
+  const bones = c.d && c.d.type === "bones" && c.img["bone-body"];
+  if (bones) layer(ctx, c, t, true);                     // the skeleton, in the very same pose, under the flesh
+  if (bones && c.flesh === false) return;
+  c.lod = !c.d && !c.char && !!c.sprite && c !== held && 100 * S * cam.zoom * c.far < LOD_PX;
+  if (c.char > 0) {                                      // charred ones go through a scratch canvas to be tinted: only the patch around it
+    const R = scratchRect(c); if (!R) return;
+    sctx.setTransform(1, 0, 0, 1, 0, 0); sctx.clearRect(R[0], R[1], R[2], R[3]);
+    sctx.save(); sctx.beginPath(); sctx.rect(R[0], R[1], R[2], R[3]); sctx.clip(); worldT(sctx);
+    layer(sctx, c, t, false); sctx.restore();
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(scratch, R[0], R[1], R[2], R[3], R[0], R[1], R[2], R[3]); ctx.restore();
+  } else layer(ctx, c, t, false);
+}
+function scratchRect(c) {                                 // device pixels around a creature, roomy enough for swelling and flailing
+  const k = Math.max(c.defX, c.defY, 1) * c.far, hw = (c.box.right - c.box.left) * S * k * .7 + 40, ht = tall(c) * k * 1.4 + 40;
+  const a = toScreen(c.x - hw, c.z - c.h - ht), b = toScreen(c.x + hw, c.z + 30);
+  const x0 = Math.max(0, Math.floor(a.sx * DPR)), y0 = Math.max(0, Math.floor(a.sy * DPR));
+  const x1 = Math.min(scratch.width, Math.ceil(b.sx * DPR)), y1 = Math.min(scratch.height, Math.ceil(b.sy * DPR));
+  return x1 > x0 && y1 > y0 ? [x0, y0, x1 - x0, y1 - y0] : null;
+}
+
+// one layer of a creature: the flesh, or the bones. Both share the pose, so limbs never come apart.
+function layer(g, c, t, bone) {
+  const type = c.d && c.d.type, mode = c.mode, walking = (mode === "walk" && c.legs) || type === "fire", held = mode === "held", inAir = mode === "air", scared = c.scared > 0;
+  const sw = walking ? Math.sin(c.phase) : 0, breathe = mode === "rest" ? Math.sin(t * 2.2 + c.phase) * .015 : 0;
+  const bob = walking ? Math.abs(Math.cos(c.phase)) * 1.6 : 0, loose = bone && c.flesh === false;
+  const tremble = type === "zap" ? Math.sin(c.wiggle) * 2 : type === "pop" ? Math.sin(c.wiggle) * 1.5 * c.defX : scared && mode === "rest" ? Math.sin(t * 60) * .6 : 0;
+  g.save(); g.globalAlpha = c.alpha;
+  g.translate(c.x + tremble, c.z - c.h);
+  if (type === "bones" && c.boneRot) g.rotate(c.boneRot);
+  g.scale(S * c.far * c.face, S * c.far);
+  if (c.spin) { g.translate(0, -50); g.rotate(c.spin); g.translate(0, 50); }
+  g.scale(c.defX, c.defY);
+  const pop = c.pop < .6 ? .14 * Math.exp(-c.pop * 7) * Math.cos(c.pop * 32) : 0;
+  g.scale(1 + c.squash - pop * .7, 1 - c.squash + breathe + pop);
+  if (!bone && type === "bones" && c.clip) g.scale(1 + c.clip * .14, 1 - c.clip * .22);   // melting flesh sags toward the floor
+  if (held) g.rotate(Math.sin(c.wiggle * .5) * .08);
+  if (type === "fire") g.rotate(Math.sin(c.phase * .5) * .1);
+  if (type === "crush" && c.d.t < 1.2) g.rotate(Math.sin(c.wiggle) * .04);
+  g.translate(-50, -c.box.bottom - bob + (loose ? c.boneFall || 0 : 0));
+  if (!bone && c.lod) { g.drawImage(c.sprite, 0, 0, 100, 100); g.restore(); return; }   // tiny on screen: one picture, same hops and squash
+  if (!bone && c.clip) {                                  // the flesh goes from the top, with a wet, wavy edge
+    const y0 = c.box.top + (c.box.bottom - c.box.top) * c.clip;
+    g.beginPath(); g.moveTo(-60, 220);
+    for (let x = -60; x <= 160; x += 5) g.lineTo(x, y0 + Math.sin(x * .3 + t * 7) * 2.2 + Math.sin(x * .11 - t * 3) * 1.6);
+    g.lineTo(160, 220); g.closePath(); g.clip();
+  }
+  if (bone && c.boneClip) { g.beginPath(); g.rect(-60, c.box.top + (c.box.bottom - c.box.top) * c.boneClip, 220, 220); g.clip(); }
+  const P = id => (bone ? "bone-" + id : id), panic = held || !!c.d;
+  const ant = Math.sin(t * 2.6 + c.phase) * .12 + (walking ? Math.cos(c.phase * 2) * .08 : 0) + (panic && !loose ? Math.sin(c.wiggle * .8 + c.phase) * .35 : 0) + (inAir ? c.vh * .00013 : 0);
+  piece(g, c, P("antenna-1"), ant); piece(g, c, P("antenna-2"), ant * .85 - .05);
+  const kick = panic ? Math.sin(c.wiggle + c.phase) * (type === "crush" ? .6 : .35) * (loose ? .25 : 1) : 0, legA = walking ? sw * .45 : inAir ? .12 : 0;
+  piece(g, c, P("leg-left"), legA + kick); piece(g, c, P("leg-right"), -legA - kick);
+  const armA = loose ? .5 + Math.sin(c.wiggle * .5) * .1 : panic || scared ? -.9 + Math.sin((c.wiggle || t * 9) * 1.3 + c.phase) * .4 : walking ? -sw * .35 : inAir ? -.5 : Math.sin(t * 1.7 + c.phase) * .06;
+  piece(g, c, P("arm-left"), armA); piece(g, c, P("arm-right"), -armA);
+  if (bone) { g.drawImage(c.img["bone-body"], 0, 0, 100, 100); g.restore(); return; }
+  if (c.img.body) g.drawImage(c.img.body, 0, 0, 100, 100);
+  piece(g, c, "blush");
+  const wide = scared || panic, E = c.eyes, a = c.A.eyes;
+  if (a && E && c.img["eyes-white"] && (E.always || wide)) {         // whites, and pupils that look somewhere
+    g.save(); g.translate(a.x, a.y); const s = (a.scale || 1) * (wide ? E.wide : 1); g.scale(s, s * (c.shut > 0 && !wide ? .12 : 1));
+    g.drawImage(c.img["eyes-white"], -50, -50, 100, 100);
+    const lx = c.look.x * c.face * E.max, ly = c.look.y * E.max * .8, ps = wide ? .8 : 1;
+    for (const x of E.xs) g.drawImage(c.img.pupil, x + lx - 50 * ps, ly - 50 * ps, 100 * ps, 100 * ps);
+    g.restore();
+  } else piece(g, c, "eyes", 0, 1, c.shut > 0 ? .12 : 1);
+  if (wide && c.img["mouth-o"]) piece(g, c, "mouth-o", 0, 1.15, 1.15);                // a surprised "o", if it has a mouth
+  else piece(g, c, "mouth");
+  if (g === sctx) {                                       // burnt: a darker tone, then scorches and red patches that spread
+    g.globalCompositeOperation = "source-atop";
+    g.fillStyle = `rgba(48,24,20,${c.char * .5})`; g.fillRect(-60, -60, 220, 220);
+    if (c.patches) for (const q of c.patches) { const k = clamp(c.char * 1.7 - q.d * .7, 0, 1); if (!k) continue; g.fillStyle = q.col; g.beginPath(); g.arc(q.x, q.y, q.r * k, 0, 6.283); g.fill(); }
+  }
+  g.restore();
+}
+
+function drawFloor(view) {                                // the endless floor: faint dots, and the stains of the fallen
+  const step = 140, z = cam.zoom; if (step * z >= 18) {
+    ctx.fillStyle = night() ? "rgba(255,255,255,.07)" : "rgba(30,20,40,.07)";
+    const r = 1.6 / z;
+    ctx.beginPath();                                      // all the dots in one path, one fill
+    for (let x = Math.floor(view.x0 / step) * step; x < view.x1; x += step)
+      for (let y = Math.floor(view.z0 / step) * step; y < view.z1; y += step) { ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 6.283); }
+    ctx.fill();
+  }
+  for (const d of decals) {
+    if (d.goo) {                                          // a flattened noodle: a wet smear
+      const P = d.goo; if (P[0][0] < view.x0 - 150 || P[0][0] > view.x1 + 150 || P[0][1] < view.z0 - 150 || P[0][1] > view.z1 + 150) continue;
+      const al = Math.min(1, d.life / d.max * 2) * d.a;
+      ctx.save(); ctx.lineCap = ctx.lineJoin = "round"; ctx.globalAlpha = al;
+      const path = () => { ctx.beginPath(); ctx.moveTo(P[0][0], P[0][1]); for (let i = 1; i < P.length - 1; i++) ctx.quadraticCurveTo(P[i][0], P[i][1], (P[i][0] + P[i + 1][0]) / 2, (P[i][1] + P[i + 1][1]) / 2); ctx.lineTo(P[P.length - 1][0], P[P.length - 1][1]); };
+      path(); ctx.strokeStyle = "#a8323f"; ctx.lineWidth = d.w * 1.25; ctx.stroke();
+      path(); ctx.strokeStyle = d.color; ctx.lineWidth = d.w; ctx.stroke();
+      ctx.globalAlpha = al * .5; ctx.translate(-d.w * .15, -d.w * .2); path(); ctx.strokeStyle = "#f8b6bc"; ctx.lineWidth = d.w * .22; ctx.stroke();
+      ctx.restore(); continue;
+    }
+    if (d.x < view.x0 - 80 || d.x > view.x1 + 80 || d.z < view.z0 - 40 || d.z > view.z1 + 40) continue;
+    ctx.globalAlpha = Math.min(1, d.life / d.max * 2) * d.a; ctx.fillStyle = d.color;
+    ctx.beginPath(); ctx.ellipse(d.x, d.z, d.r, d.r * .32, 0, 0, 6.283); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+const drops = [], dropSprites = new Map();
+function dropSprite(col) {                                  // an ellipse 20 × 30 in a 48 × 64 box, drawn once per color
+  let c = dropSprites.get(col); if (c) return c;
+  c = document.createElement("canvas"); c.width = 48; c.height = 64; const g = c.getContext("2d");
+  g.fillStyle = col; g.beginPath(); g.ellipse(24, 32, 20, 30, 0, 0, 6.283); g.fill(); dropSprites.set(col, c); return c;
+}
+function quad(p, x, y, hw, hh, ang, ky) {                // a rotated (and squashed) rectangle, as corners: no save/restore
+  const c = Math.cos(ang), s = Math.sin(ang), h = hh * ky;
+  p.moveTo(x - c * hw + s * h, y - s * hw - c * h); p.lineTo(x + c * hw + s * h, y + s * hw - c * h);
+  p.lineTo(x + c * hw - s * h, y + s * hw + c * h); p.lineTo(x - c * hw - s * h, y - s * hw + c * h); p.closePath();
+}
+function drawFx(dt, view) {
+  let ri = 0;
+  for (let i = 0; i < rings.length; i++) {
+    const q = rings[i]; q.life -= dt * 2.6; if (q.life <= 0) continue; rings[ri++] = q;
+    const r = q.r + (q.max - q.r) * (1 - q.life * q.life);
+    ctx.save(); ctx.globalAlpha = q.life * (q.fill ? .9 : .5);
+    if (q.fill) { const gr = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, r); gr.addColorStop(0, "#fff8d6"); gr.addColorStop(.4, "#ffd23f"); gr.addColorStop(1, "rgba(255,120,40,0)"); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(q.x, q.y, r, 0, 6.283); ctx.fill(); }
+    else { ctx.strokeStyle = q.soft || (night() ? "#fff" : "#1d1820"); ctx.lineWidth = 3 * q.life; ctx.beginPath(); ctx.ellipse(q.x, q.y, r, q.flat ? r * .3 : r, 0, 0, 6.283); ctx.stroke(); }
+    ctx.restore();
+  }
+  rings.length = ri;
+  // particles: the dead are packed out in place (no splice), the ones off screen still move but are not drawn,
+  // and drops and chunks (most of the gore) are gathered into one path per color and filled once
+  const damp = Math.pow(.4, dt), X0 = view.x0 - 60, X1 = view.x1 + 60, Y0 = view.z0 - 200, Y1 = view.z1 + 60;
+  const batch = new Map(), bp = col => { let p = batch.get(col); if (!p) batch.set(col, (p = new Path2D())); return p; };
+  let lastA = -1, lastC = "", j = 0, nd = 0;
+  for (let i = 0; i < parts.length; i++) {
+    const q = parts[i]; q.life -= dt * q.fade; if (q.life <= 0) continue;
+    q.vy += q.g * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= damp;
+    if (q.floor !== undefined && q.vy > 0 && q.y > q.floor + (q.r * 3) * (rand() - .3)) { splat(q.x, q.y, q.r * 1.6, q.color, 6, q.sa); continue; }   // a drop or a chunk hits the floor
+    parts[j++] = q;
+    const k = q.kind;
+    if (k === "confetti") { q.vx += Math.sin(q.life * 20 + q.spin) * 30 * dt; if (q.vy > 120) q.vy = 120; }   // paper bits: they flutter as they fall
+    if (q.x < X0 || q.x > X1 || q.y < Y0 || q.y > Y1) continue;
+    if (k === "drop") { drops[nd++] = q; continue; }
+    if (k === "chunk") { quad(bp(q.color), q.x, q.y, q.r, q.r * .8, q.spin * (1 - q.life), 1); continue; }
+    const al = k === "smoke" ? q.life * .35 : k === "confetti" ? Math.min(1, q.life * 4) : Math.min(1, q.life * 1.5);
+    if (al !== lastA) ctx.globalAlpha = lastA = al;
+    if (q.color !== lastC) ctx.fillStyle = lastC = q.color;
+    ctx.beginPath();
+    if (k === "heart") {
+      const s = q.r * (1.2 - q.life * .2); ctx.moveTo(q.x, q.y + s * .9);
+      ctx.bezierCurveTo(q.x - s * 1.4, q.y - s * .1, q.x - s * .6, q.y - s * 1.1, q.x, q.y - s * .35);
+      ctx.bezierCurveTo(q.x + s * .6, q.y - s * 1.1, q.x + s * 1.4, q.y - s * .1, q.x, q.y + s * .9);
+    } else if (k === "star") {
+      const s = q.r * (1.2 - q.life * .2);
+      for (let n = 0; n < 10; n++) { const a = -Math.PI / 2 + n * Math.PI / 5 + q.life * 3, rr = n % 2 ? s * .45 : s; ctx.lineTo(q.x + Math.cos(a) * rr, q.y + Math.sin(a) * rr); }
+      ctx.closePath();
+    } else if (k === "confetti") quad(ctx, q.x, q.y, q.r, q.r * .55, q.spin * (1 - q.life) * 2, Math.cos(q.life * 25 + q.spin));
+    else {
+      const r = k === "flame" ? q.r * q.life : k === "smoke" ? q.r + q.grow * (1 - q.life) : k === "dot" ? q.r * (1.3 - q.life * .3) : q.r;
+      ctx.arc(q.x, q.y, Math.max(.5, r), 0, 6.283);
+    }
+    ctx.fill();
+  }
+  parts.length = j;
+  ctx.globalAlpha = 1;
+  for (const [col, p] of batch) { ctx.fillStyle = col; ctx.fill(p); }
+  if (nd) {                                                 // drops: a ready-made ellipse per color, stamped rotated (no path to build)
+    const M = ctx.getTransform(), A = M.a, E = M.e, Fy = M.f;
+    for (let i = 0; i < nd; i++) {
+      const q = drops[i], len = Math.hypot(q.vx, q.vy) || 1, sc = q.r * .04 * A, co = -q.vy / len * sc, si = q.vx / len * sc;   // rotated a quarter turn past the velocity
+      ctx.setTransform(co, si, -si, co, A * q.x + E, A * q.y + Fy); ctx.drawImage(dropSprite(q.color), -24, -32);
+    }
+    ctx.setTransform(M); drops.length = 0;
+  }
+  ctx.globalAlpha = 1;
+  let bi = 0;
+  for (let i = 0; i < bolts.length; i++) {
+    const b = bolts[i]; b.life -= dt * 3; if (b.life <= 0) continue; bolts[bi++] = b;
+    ctx.save(); ctx.lineJoin = "round"; ctx.lineCap = "round";
+    for (const [wd, col] of [[12, "rgba(140,200,255,.35)"], [5, "#cfeaff"], [2, "#fff"]]) {
+      ctx.globalAlpha = b.life; ctx.strokeStyle = col; ctx.lineWidth = wd; ctx.beginPath(); b.pts.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  bolts.length = bi;
+}
+
+// ---------- hands ----------
+// left: drag a creature; one click = caress; two = off in hearts ("more of this"); drag the floor = move around;
+// two clicks on the floor = a new one falls somewhere on screen
+// right: one click = a fright; two = gone ("no more of this").
+// Touch: tap = caress, double tap = a fright; press and hold opens ♥ and 💔: slide to one and let go; two fingers zoom.
+
+let held = null, grab = null, trail = [], downX = 0, downY = 0, moved = 0, pressTimer = 0, longPress = false, panning = null;
+let lastTap = { t: 0, x: 0, y: 0, c: null }, lastRight = { t: 0, c: null }, px = 0, py = 0;
+const touches = new Map(); let pinch = null, radial = null;
+function openRadial(c, x, y) {                            // ♥ down left, 💔 down right, so the finger never hides the blob (above it near the bottom of the screen)
+  const up = y < innerHeight - 140 ? 1 : -1, cx = clamp(x, 80, innerWidth - 80), pos = { love: [cx - 66, y + up * 82], gone: [cx + 66, y + up * 82] };
+  radial = { c, x, y, pos, pick: null };
+  for (const [k, id] of [["love", "rLove"], ["gone", "rGone"]]) { const el = $(id); el.style.left = pos[k][0] + "px"; el.style.top = pos[k][1] + "px"; el.classList.remove("pick"); }
+  $("radial").hidden = false; requestAnimationFrame(() => $("radial").classList.add("on"));
+  if (navigator.vibrate) navigator.vibrate(12);
+}
+function closeRadial() { radial = null; $("radial").classList.remove("on"); $("radial").hidden = true; }
+function aimRadial(x, y) {                                // the one the finger is closest to, once it has moved toward it
+  if (!radial) return;
+  let pick = null, best = 1e9;
+  for (const k of ["love", "gone"]) { const [px2, py2] = radial.pos[k], d = Math.hypot(x - px2, y - py2); if (d < best) { best = d; pick = k; } }
+  if (Math.hypot(x - radial.x, y - radial.y) < 26 || best > 90) pick = null;
+  if (pick !== radial.pick) { radial.pick = pick; $("rLove").classList.toggle("pick", pick === "love"); $("rGone").classList.toggle("pick", pick === "gone"); if (pick && navigator.vibrate) navigator.vibrate(8); }
+}
+function boxOf(c) {
+  const l = c.face > 0 ? c.box.left : 100 - c.box.right, r = c.face > 0 ? c.box.right : 100 - c.box.left, m = 6 / cam.zoom;
+  return { x0: c.x + (l - 50) * S - m, x1: c.x + (r - 50) * S + m, y0: c.z - c.h - tall(c) - m, y1: c.z - c.h + m };
+}
+function hit(sx, sy) {
+  const w = toWorld(sx, sy); let best = null;             // the front-most one under the pointer, in one pass (no filter + sort per mouse move)
+  for (const c of crits) {
+    if (c.d || !c.ready || (best && c.z <= best.z)) continue;
+    const b = boxOf(c); if (w.x >= b.x0 && w.x <= b.x1 && w.z >= b.y0 && w.z <= b.y1) best = c;
+  }
+  return best;
+}
+function rightClick(c) {
+  const now = performance.now();
+  if (lastRight.c === c && now - lastRight.t < 450) { lastRight = { t: 0, c: null }; kill(c); }
+  else { lastRight = { t: now, c, x: px, y: py }; fright(c); }
+}
+
+cv.addEventListener("pointerdown", e => {
+  $("menu").hidden = true; px = e.clientX; py = e.clientY;
+  if (e.pointerType === "touch") {
+    touches.set(e.pointerId, [e.clientX, e.clientY]);
+    if (touches.size === 2) {                            // two fingers: pinch to zoom, drag to move
+      if (held) { held.mode = held.h > 0 ? "air" : "rest"; held = null; }
+      clearTimeout(pressTimer); panning = null; closeRadial(); longPress = false;
+      const [a, b] = [...touches.values()];
+      pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), mx: (a[0] + b[0]) / 2, my: (a[1] + b[1]) / 2 };
+      return;
+    }
+  }
+  const now = performance.now();
+  let c = hit(e.clientX, e.clientY);
+  if (photoMode) {                                        // photo mode: right click puts the camera away; a blob gets its picture
+    if (e.button === 2) { setPhoto(false); return; }
+    if (c && e.button === 0) { setPhoto(false); photograph(c); return; }
+  }
+  const recent = e.button === 2 ? lastRight : lastTap;   // a second click lands on the same one even if it moved a little
+  if (recent.c && crits.includes(recent.c) && !recent.c.d && now - recent.t < 450 && Math.hypot(e.clientX - (recent.x ?? e.clientX), e.clientY - (recent.y ?? e.clientY)) < 40) c = recent.c;
+  if (e.button === 2) { if (c) rightClick(c); return; }
+  if (e.button !== 0) return;
+  cv.setPointerCapture(e.pointerId);
+  downX = e.clientX; downY = e.clientY; moved = 0; longPress = false; trail = [[e.clientX, e.clientY, now]];
+  if (!c) { panning = { x: cam.x, z: cam.z, t: now }; return; }   // the floor: a drag moves the camera, two clicks drop one
+  const w = toWorld(e.clientX, e.clientY);
+  held = c; c.prev = c.mode; c.mode = "held"; c.vx = c.vz = c.vh = 0;
+  grab = { dx: w.x - c.x, dy: w.z - (c.z - c.h) };
+  cursor("grab");
+  clearTimeout(pressTimer);
+  if (e.pointerType !== "mouse") pressTimer = setTimeout(() => {   // touch: holding still opens ♥ and 💔
+    if (held === c && moved < 8) { longPress = true; held = null; c.mode = c.h > 0 ? "air" : "rest"; openRadial(c, downX, downY); }
+  }, 430);
+});
+cv.addEventListener("pointermove", e => {
+  px = e.clientX; py = e.clientY; cursorIn = e.pointerType === "mouse" || cursorIn;
+  if (e.pointerType === "touch" && touches.has(e.pointerId)) touches.set(e.pointerId, [e.clientX, e.clientY]);
+  if (pinch && touches.size === 2) {
+    const [a, b] = [...touches.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]), mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+    cam.x -= (mx - pinch.mx) / cam.zoom; cam.z -= (my - pinch.my) / cam.zoom;
+    zoomAt(mx, my, d / pinch.d); pinch = { d, mx, my }; return;
+  }
+  if (radial) { aimRadial(e.clientX, e.clientY); return; }
+  moved = Math.max(moved, Math.hypot(e.clientX - downX, e.clientY - downY));
+  if (panning) { if (moved >= 4) { cam.x = panning.x - (e.clientX - downX) / cam.zoom; cam.z = panning.z - (e.clientY - downY) / cam.zoom; cursor("pan"); } return; }
+  if (!held) { hover(e.clientX, e.clientY); return; }
+  if (moved < 8) return;                                 // not a drag yet: maybe a click
+  const c = held, w = toWorld(e.clientX, e.clientY), feet = w.z - grab.dy;
+  c.x = w.x - grab.dx;
+  if (feet > c.z) c.z = feet;                            // dragged down: it comes forward
+  c.h = Math.max(0, c.z - feet);
+  trail.push([e.clientX, e.clientY, performance.now()]); if (trail.length > 8) trail.shift();
+});
+function release(e) {
+  if (e.pointerType === "touch") { touches.delete(e.pointerId); if (pinch) { if (touches.size < 2) pinch = null; return; } }
+  clearTimeout(pressTimer);
+  const now = performance.now();
+  if (panning) {
+    const p = panning; panning = null; hover(e.clientX, e.clientY);
+    if (moved < 6) {                                     // a click on the floor: two of them drop a new one right there
+      if (now - lastTap.t < 340 && !lastTap.c && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 40) {
+        rain(document.body.classList.contains("start") ? [e.clientX, e.clientY] : null); lastTap.t = 0;
+      } else lastTap = { t: now, x: e.clientX, y: e.clientY, c: null };
+    }
+    return;
+  }
+  if (longPress) {
+    longPress = false;
+    if (radial) { const { c, pick } = radial; closeRadial();
+      if (pick && crits.includes(c) && !c.d) { if (pick === "love") love(c); else kill(c); } }
+    return;
+  }
+  if (!held) return;
+  const c = held; held = null; setTimeout(() => hover(), 0);   // after the click is handled (a pat, or off in hearts)
+  if (moved < 8) {                                       // a click, not a drag
+    c.mode = c.h > 0 ? "air" : (c.prev === "walk" ? "walk" : "rest"); c.wait = Math.max(c.wait, .6);
+    if (lastTap.c === c && now - lastTap.t < 340) { lastTap = { t: 0, c: null }; if (e.pointerType === "touch") fright(c); else love(c); }
+    else { lastTap = { t: now, x: e.clientX, y: e.clientY, c }; caress(c); }
+    return;
+  }
+  const old = trail.find(q => now - q[2] < 90) || trail[0], dt = Math.max(.016, (now - old[2]) / 1000);
+  c.vx = clamp((e.clientX - old[0]) / dt / cam.zoom, -2400, 2400);
+  c.vh = clamp(-(e.clientY - old[1]) / dt / cam.zoom, -1600, 1800);
+  c.vz = clamp(-c.vh * .06 + (rand() - .5) * 60, -300, 300);
+  c.mode = "air";
+}
+cv.addEventListener("pointerup", release);
+cv.addEventListener("pointercancel", release);
+cv.addEventListener("contextmenu", e => e.preventDefault());
+cv.addEventListener("pointerenter", () => (cursorIn = true));
+cv.addEventListener("pointerleave", () => (cursorIn = false));
+addEventListener("gesturestart", e => e.preventDefault());   // Safari: no page zoom on a pinch
+cv.addEventListener("wheel", e => { e.preventDefault(); zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * (e.ctrlKey ? .01 : .0015))); }, { passive: false });
+
+// ---------- menu, toast ----------
+
+let toastT = 0;
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 3200); }
+// ---------- photograph: a blob as a profile picture, drawn from its own vector, not from the screen ----------
+// Same picture as blobengine's png(): 512 × 512, a soft tint of its color, its floor shadow, the whole blob
+// (outstretched arms too) fitted inside the round crop apps give a profile picture.
+const PHOTO = 512, PAD = .06;
+function setPhoto(on) {
+  photoMode = on; curNow = ""; cursor("idle"); hover();
+  $("photo").textContent = on ? "photograph: click a blob (Esc to cancel)" : "photograph";
+  if (on) toast("Click a blob to take its picture. Esc or right click to cancel.");
+}
+addEventListener("keydown", e => { if (e.key === "Escape" && photoMode) setPhoto(false); });
+const wide = svg => svg.replace('viewBox="0 0 100 100"', 'viewBox="-50 -50 200 200"');   // limbs may reach past the canvas
+function opaque(cnv, cb) {                                // calls cb(x, y) for every visible pixel
+  const n = cnv.width, d = cnv.getContext("2d").getImageData(0, 0, n, n).data;
+  for (let i = 3, k = 0; i < d.length; i += 4, k++) if (d[i] > 40) cb(k % n, (k / n) | 0);
+}
+async function photograph(c) {
+  flash = .7; c.pop = 0; c.shut = .2;                     // click: a flash, and it blinks
+  const R = c.R || (c.R = render(c.g)), svg = wide(R.creature), B = body(c.g.s);
+  const probe = await bitmap(svg, 600); if (!probe) return toast("That picture didn't come out.");
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; const u = 200 / 600;
+  opaque(probe, (x, y) => { if (x < x0) x0 = x; if (x > x1) x1 = x + 1; if (y < y0) y0 = y; if (y > y1) y1 = y + 1; });
+  [x0, y0, x1, y1] = [x0, y0, x1, y1].map(v => -50 + v * u);
+  const bw = x1 - x0, bh = y1 - y0, sw = B.maxX - B.minX, sh = sw * .1, cw = Math.max(bw, sw * .84), ch = bh + sh;
+  const mx = (x0 + x1) / 2, my = y0 + ch / 2; let far = 0;   // the farthest point of the real outline (and shadow) from the center
+  opaque(await bitmap(svg, 300), (x, y) => { const X = -50 + (x + .5) * 200 / 300, Y = -50 + (y + .5) * 200 / 300; far = Math.max(far, Math.hypot(X - mx, Y - my)); });
+  const scx = (B.minX + B.maxX) / 2;
+  for (let k = 0; k < 64; k++) { const t = k / 64 * 6.2832; far = Math.max(far, Math.hypot(scx + sw * .42 * Math.cos(t) - mx, y1 + sw * .1 * Math.sin(t) - my)); }
+  const avail = PHOTO * (1 - 2 * PAD), k = Math.min(avail / Math.max(cw, ch), avail / 2 / (far + 1));
+  const ox = (PHOTO - bw * k) / 2 - x0 * k, oy = (PHOTO - ch * k) / 2 - y0 * k;
+  const art = await bitmap(svg, Math.ceil(200 * k)); if (!art) return toast("That picture didn't come out.");
+  const out = document.createElement("canvas"); out.width = out.height = PHOTO; const g = out.getContext("2d");
+  const rgb = [1, 3, 5].map(i => parseInt(c.color.slice(i, i + 2), 16));
+  g.fillStyle = `rgb(${rgb.map(v => Math.round(v + (255 - v) * .8)).join(",")})`; g.fillRect(0, 0, PHOTO, PHOTO);
+  g.fillStyle = "rgba(0,0,0,.16)"; g.beginPath(); g.ellipse(ox + scx * k, oy + y1 * k, sw * .42 * k, sw * .1 * k, 0, 0, 6.2832); g.fill();
+  g.drawImage(art, Math.round(ox - 50 * k), Math.round(oy - 50 * k));
+  const id = hash4(c.line)[0].toString(36).slice(0, 6), name = `blober-${c.fam.normalize("NFD").replace(/[^\w]/g, "")}-${id}.png`;
+  out.toBlob(blob => {
+    const url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+    toast(`${name} saved.`);
+  }, "image/png");
+}
+// ---------- play: a list of games made of your blobs; they read the same .bna ----------
+const gamesOpen = on => { $("games").hidden = !on; if (on) { $("menu").hidden = true; $("gamesX").focus(); } };
+$("play").onclick = () => gamesOpen($("games").hidden);
+$("gamesX").onclick = () => gamesOpen(false);
+$("games").onclick = e => { if (e.target === $("games")) gamesOpen(false); };
+for (const b of document.querySelectorAll("#games .game[data-href]")) b.onclick = () => { saveNow(); location.href = b.dataset.href; };
+addEventListener("keydown", e => { if (e.key === "Escape" && !$("games").hidden) gamesOpen(false); });
+// ---------- start screen and controls ----------
+if (matchMedia("(pointer: coarse)").matches) $("start").textContent = "double tap to start";
+let rulesOn = matchMedia("(pointer: coarse)").matches ? "touch" : "mouse";   // the controls of the device you are on
+const rulesShow = () => { $("rules").dataset.on = rulesOn; $("rulesSwap").textContent = rulesOn === "touch" ? "mouse controls" : "touch controls"; };
+$("rulesSwap").onclick = () => { rulesOn = rulesOn === "touch" ? "mouse" : "touch"; rulesShow(); };
+rulesShow();
+const rules = on => { $("rules").hidden = !on; if (on) { $("menu").hidden = true; $("rulesX").focus(); } };
+$("controls").onclick = () => rules(true);
+$("rulesX").onclick = () => rules(false);
+$("rules").addEventListener("pointerdown", e => { if (e.target === $("rules")) rules(false); });
+addEventListener("keydown", e => { if (e.key === "Escape" && !$("rules").hidden) rules(false); });
+
+$("photo").onclick = () => { $("menu").hidden = true; setPhoto(!photoMode); };
+
+// ---------- a folder of its own: the filter is written there as blober.bna on every change ----------
+// Point it at the repo's filters/ once; blobengine reads it from there. Chrome and Edge only (File System Access);
+// elsewhere the button stays hidden and "save" downloads the file as before.
+const BNA_NAME = "blober.bna", canFolder = "showDirectoryPicker" in window;
+let dir = null, dirOk = false, writing = Promise.resolve();
+function idb(mode, fn) {                                   // the folder handle is kept in IndexedDB, so it is remembered
+  return new Promise((ok, ko) => {
+    const rq = indexedDB.open("blober", 1);
+    rq.onupgradeneeded = () => rq.result.createObjectStore("kv");
+    rq.onerror = () => ko(rq.error);
+    rq.onsuccess = () => { const tx = rq.result.transaction("kv", mode), r = fn(tx.objectStore("kv")); tx.oncomplete = () => ok(r && r.result); tx.onerror = () => ko(tx.error); };
+  });
+}
+function writeBna() {                                     // one write at a time, always the latest text
+  if (!dir || !dirOk) return;
+  const text = fileText();
+  writing = writing.then(async () => {
+    try { const w = await (await dir.getFileHandle(BNA_NAME, { create: true })).createWritable(); await w.write(text); await w.close(); }
+    catch (e) { dirOk = false; folderUI(); toast(`Lost the folder: reconnect it in ···`); }
+  });
+}
+async function useDir(h, ask) {                           // read what is there (votes from elsewhere join in), then keep it updated
+  let p = await h.queryPermission({ mode: "readwrite" });
+  if (p !== "granted" && ask) p = await h.requestPermission({ mode: "readwrite" });
+  dir = h; dirOk = p === "granted"; folderUI();
+  if (!dirOk) return false;
+  let n = 0;
+  try { n = readText(await (await (await h.getFileHandle(BNA_NAME)).getFile()).text()); } catch (e) {}   // no file yet: it is made now
+  saveNow(); info();
+  return n;
+}
+function folderUI() {
+  const b = $("folder"); b.hidden = !canFolder;
+  b.textContent = !dir ? "save to a folder…" : dirOk ? `folder: ${dir.name}/${BNA_NAME} ✓` : `reconnect ${dir.name}/`;
+}
+$("folder").onclick = async () => {
+  try {
+    if (dir && !dirOk) { await useDir(dir, true); if (dirOk) toast(`Saving to ${dir.name}/${BNA_NAME}.`); return; }
+    const h = await showDirectoryPicker({ id: "blober", mode: "readwrite" });
+    await idb("readwrite", st => st.put(h, "dir"));
+    const n = await useDir(h, true);
+    if (dirOk) toast(`Saving to ${h.name}/${BNA_NAME}` + (n ? `; ${n} votes read from it.` : "."));
+  } catch (e) { if (e.name !== "AbortError") toast("That folder can't be used."); }
+};
+folderUI();
+if (canFolder) idb("readonly", st => st.get("dir")).then(async h => {
+  if (!h) return;
+  const n = await useDir(h, false);
+  if (!dirOk) toast(`To keep saving to ${h.name}/, open ··· and reconnect it.`);
+  else if (n) toast(`${n} votes read from ${h.name}/${BNA_NAME}.`);
+}).catch(() => {});
+
+function info() {
+  const next = WEAPONS.find(w => gone < w.at);
+  $("info").textContent = `${favs.length} favorites · ${gone} gone · ${brain.events.length} votes · polish ${polish()}` + (next ? ` · ${next.name} at ${next.at}` : "");
+}
+$("more").onclick = () => { $("menu").hidden = !$("menu").hidden; info(); };
+$("save").onclick = () => {                              // your filter: votes, favorites and how many are gone, as a .bna
+  const name = `blober-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}.bna`;
+  const url = URL.createObjectURL(new Blob([fileText()], { type: "text/plain" })), a = document.createElement("a");
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+  $("menu").hidden = true; toast(`${name} saved.`);
+};
+$("load").onclick = () => $("file").click();
+$("file").onchange = async () => {
+  const f = $("file").files[0]; if (!f) return;
+  const n = readText(await f.text()); $("file").value = ""; save(); info();
+  toast(n ? `${n} votes loaded.` : "No new votes in that file.");
+};
+
+// ---------- trackers: a soft dot of its color at the edge of the screen for each one off camera ----------
+
+function drawTrackers() {                                 // a pin, away from the frame, its tip pointing where it is
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const cx = W / 2, cy = H / 2, inset = Math.min(56, W * .08, H * .08), m = 30;
+  for (const c of crits) {
+    if (c.d) continue;
+    const s = toScreen(c.x, c.z - c.h - tall(c) * .5);
+    if (s.sx > -m && s.sx < W + m && s.sy > -m && s.sy < H + m) continue;   // on screen: no pin
+    const dx = s.sx - cx, dy = s.sy - cy, k = Math.min((cx - inset) / Math.abs(dx || 1e-6), (cy - inset) / Math.abs(dy || 1e-6));
+    const x = cx + dx * k, y = cy + dy * k, far = Math.hypot(dx, dy) * (1 - k), r = clamp(8 - far / 1100, 4.5, 8);
+    const a = Math.atan2(dy, dx), L = r * 2.1, b = Math.acos(r / L);
+    ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * L, y + Math.sin(a) * L); ctx.arc(x, y, r, a + b, a - b + Math.PI * 2); ctx.closePath();
+    ctx.globalAlpha = .55; ctx.fillStyle = c.color; ctx.fill();
+    ctx.globalAlpha = .45; ctx.strokeStyle = night() ? "#000" : "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.globalAlpha = .7; ctx.fillStyle = night() ? "#14161a" : "#fff"; ctx.beginPath(); ctx.arc(x, y, r * .38, 0, 6.283); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ---------- loop: only what the camera sees is thought about and drawn ----------
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now; const t = now / 1000; NIGHT = nightNow();
+  const m = 160 / cam.zoom, a = toWorld(0, 0), b = toWorld(W, H);
+  const view = { x0: a.x - m, x1: b.x + m, z0: a.z - m, z1: b.z + m * 1.6 };
+  const seen = [];
+  let loads = 0; const res = wantRes();
+  for (const c of crits.slice()) {
+    const on = c.x > view.x0 && c.x < view.x1 && c.z > view.z0 && c.z < view.z1;
+    if (!on && !c.d && c !== held && c.mode === "air") { think(c, dt); continue; }   // thrown off camera: the fall still ends
+    if (!on && c.h > 0 && c.mode !== "air" && !c.d && c !== held) c.h = 0;            // mid-hop when it left: put it down
+    if (on || c.d || c === held) {
+      c.off = 0;
+      if (!c.ready && !c.loading && loads < 3) { load(c, res); loads++; }
+      else if (c.ready && !c.loading && !c.d && (c.res < res || c.res > res * 2.5) && loads < 2) { load(c, res); loads++; }   // sharper up close, lighter far away
+      think(c, dt);
+      if (!c.removed) seen.push(c);
+    } else if (c.ready && (c.off += dt) > 4) unload(c);   // asleep off camera: remembered, not processed
+  }
+  { let j = 0; for (const d of decals) if ((d.life -= dt) > 0) decals[j++] = d; decals.length = j; }
+  shake *= Math.pow(.004, dt); flash = Math.max(0, flash - dt * 4);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = night() ? "#14161a" : "#fff"; ctx.fillRect(0, 0, W, H);
+  worldT(ctx);
+  if (shake > .3) ctx.translate((rand() - .5) * shake / cam.zoom, (rand() - .5) * shake / cam.zoom);
+  drawFloor(view);
+  seen.sort((p, q) => (p === held) - (q === held) || p.z - q.z);
+  stepShards(dt); stepNoodles(dt);
+  for (const c of seen) drawCrit(c, t);
+  for (const s of shards) if (s.x > view.x0 - 100 && s.x < view.x1 + 100 && s.z > view.z0 - 100 && s.z - s.h < view.z1 + 100) drawShard(s);
+  drawNoodles();
+  drawFx(dt, view);
+  drawTrackers();
+  if (flash > 0) { ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.fillStyle = `rgba(255,255,255,${flash * .75})`; ctx.fillRect(0, 0, W, H); }
+  requestAnimationFrame(frame);
+}
+window.blober = { crits, cam, boxOf, toScreen, spawn, makeOne, setGone: n => (gone = n), kill: (c, type) => DEATHS[type](c) };   // handy from the console
+readText(store.get("all"));
+readText(store.get("events"));
+for (const s of store.get("basket").split("\n")) if (s && !favs.includes(s)) favs.push(s);
+saveNow();                                                // carries old saves over to the blober name
+info();
+requestAnimationFrame(frame);
+}
+
+</script>
+<script>if ("serviceWorker" in navigator && isSecureContext) navigator.serviceWorker.register("sw.js").catch(() => {});</script>
+</body>
+</html>
